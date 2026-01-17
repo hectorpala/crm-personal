@@ -59,7 +59,7 @@ export default function ContactDetail() {
   const { data: contact, isLoading, error } = useQuery<Contact>({
     queryKey: ['contact', id],
     queryFn: async () => {
-      const res = await fetch('http://localhost:3000/api/contacts/' + id)
+      const res = await fetch('/api/contacts/' + id)
       if (!res.ok) throw new Error('Contact not found')
       return res.json()
     },
@@ -67,7 +67,7 @@ export default function ContactDetail() {
 
   const updateMutation = useMutation({
     mutationFn: async (data: Partial<Contact>) => {
-      const res = await fetch('http://localhost:3000/api/contacts/' + id, {
+      const res = await fetch('/api/contacts/' + id, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -95,7 +95,7 @@ export default function ContactDetail() {
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch('http://localhost:3000/api/contacts/' + id, {
+      const res = await fetch('/api/contacts/' + id, {
         method: 'DELETE',
       })
       if (!res.ok) throw new Error('Error al eliminar')

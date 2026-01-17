@@ -62,14 +62,14 @@ export default function Contacts() {
   const { data: contacts = [], isLoading, refetch } = useQuery<Contact[]>({
     queryKey: ['contacts'],
     queryFn: async () => {
-      const res = await fetch('http://localhost:3000/api/contacts')
+      const res = await fetch('/api/contacts')
       return res.json()
     },
   })
 
   const createMutation = useMutation({
     mutationFn: async (contact: typeof newContact) => {
-      const res = await fetch('http://localhost:3000/api/contacts', {
+      const res = await fetch('/api/contacts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(contact),
@@ -139,7 +139,7 @@ export default function Contacts() {
     const autoSync = async () => {
       setIsSyncing(true)
       try {
-        await fetch('http://localhost:3000/api/google-sheets/sync', {
+        await fetch('/api/google-sheets/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ spreadsheetId: '1AjQyoFIdEuGpf2UNZsbMVvg7MNuonwxm8rfdw5yv0eo' })
@@ -184,7 +184,7 @@ export default function Contacts() {
   const handleSync = async () => {
     setIsSyncing(true)
     try {
-      await fetch('http://localhost:3000/api/google-sheets/sync', {
+      await fetch('/api/google-sheets/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ spreadsheetId: '1AjQyoFIdEuGpf2UNZsbMVvg7MNuonwxm8rfdw5yv0eo' })

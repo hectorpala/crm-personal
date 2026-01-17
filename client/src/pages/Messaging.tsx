@@ -30,7 +30,7 @@ export default function Messaging() {
   const { data: contacts = [] } = useQuery<Contact[]>({
     queryKey: ['contacts'],
     queryFn: async () => {
-      const res = await fetch('http://localhost:3000/api/contacts')
+      const res = await fetch('/api/contacts')
       return res.json()
     },
   })
@@ -102,7 +102,7 @@ export default function Messaging() {
 
     try {
       if (channel === 'email') {
-        const res = await fetch('http://localhost:3000/api/email/send-bulk', {
+        const res = await fetch('/api/email/send-bulk', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ recipients, subject, message }),
@@ -116,7 +116,7 @@ export default function Messaging() {
           })
         }
       } else {
-        const res = await fetch('http://localhost:3000/api/whatsapp/generate-bulk-links', {
+        const res = await fetch('/api/whatsapp/generate-bulk-links', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ recipients, message }),
