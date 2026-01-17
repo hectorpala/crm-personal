@@ -43,3 +43,9 @@ credentials.json
 token.json
 *.pem
 *.key
+
+# Build artifacts
+client/tsconfig.tsbuildinfo
+client/tsconfig.node.tsbuildinfo
+client/vite.config.d.ts
+client/vite.config.js
