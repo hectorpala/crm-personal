@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import type { Contact } from '@/types'
 import { useToast } from '@/hooks/use-toast'
+import { LoadingState } from '@/components/ui/loading-state'
 
 const cleanPhone = (phone: string) => phone.replace(/[^0-9+]/g, '')
 
@@ -143,18 +144,13 @@ export default function ContactDetail() {
   }
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#f2f2f7] flex flex-col items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[#8e8e93]" />
-        <p className="mt-3 text-sm text-[#8e8e93]">Cargando contacto...</p>
-      </div>
-    )
+    return <LoadingState message="Cargando contacto..." />
   }
 
   if (error || !contact) {
     return (
       <div className="min-h-screen bg-[#f2f2f7] flex flex-col items-center justify-center gap-3">
-        <p className="text-ios-body text-[#8e8e93]">Contacto no encontrado</p>
+        <p className="text-ios-body text-[#6b7280]">Contacto no encontrado</p>
         <Link to="/contacts" className="text-ios-body text-[#007aff]">Volver</Link>
       </div>
     )
@@ -206,7 +202,7 @@ export default function ContactDetail() {
           <div className="mx-4 bg-white rounded-[10px] overflow-hidden">
             <div className="divide-y divide-[rgba(60,60,67,0.29)]">
               <div className="flex items-center px-4 min-h-[44px]">
-                <label htmlFor="edit-name" className="text-ios-body text-[#8e8e93] w-24">Nombre</label>
+                <label htmlFor="edit-name" className="text-ios-body text-[#6b7280] w-24">Nombre</label>
                 <input
                   id="edit-name" type="text"
                   value={editData.name || ''}
@@ -215,7 +211,7 @@ export default function ContactDetail() {
                 />
               </div>
               <div className="flex items-center px-4 min-h-[44px]">
-                <label htmlFor="edit-company" className="text-ios-body text-[#8e8e93] w-24">Empresa</label>
+                <label htmlFor="edit-company" className="text-ios-body text-[#6b7280] w-24">Empresa</label>
                 <input
                   id="edit-company" type="text"
                   value={editData.company || ''}
@@ -230,7 +226,7 @@ export default function ContactDetail() {
           {/* Phone Card */}
           <div className="mx-4 mt-8 bg-white rounded-[10px] overflow-hidden">
             <div className="flex items-center px-4 min-h-[44px]">
-              <label htmlFor="edit-phone" className="text-ios-body text-[#8e8e93] w-24">Telefono</label>
+              <label htmlFor="edit-phone" className="text-ios-body text-[#6b7280] w-24">Telefono</label>
               <input
                 id="edit-phone" type="tel"
                 value={editData.phone || ''}
@@ -244,7 +240,7 @@ export default function ContactDetail() {
           {/* Email Card */}
           <div className="mx-4 mt-8 bg-white rounded-[10px] overflow-hidden">
             <div className="flex items-center px-4 min-h-[44px]">
-              <label htmlFor="edit-email" className="text-ios-body text-[#8e8e93] w-24">Email</label>
+              <label htmlFor="edit-email" className="text-ios-body text-[#6b7280] w-24">Email</label>
               <input
                 id="edit-email" type="email"
                 value={editData.email || ''}
@@ -258,7 +254,7 @@ export default function ContactDetail() {
           {/* Address Card */}
           <div className="mx-4 mt-8 bg-white rounded-[10px] overflow-hidden">
             <div className="px-4 py-3">
-              <label htmlFor="edit-address" className="text-ios-body text-[#8e8e93] block">Ubicacion</label>
+              <label htmlFor="edit-address" className="text-ios-body text-[#6b7280] block">Ubicacion</label>
               <textarea id="edit-address"
                 value={editData.address || ''}
                 onChange={(e) => setEditData({ ...editData, address: e.target.value })}
@@ -276,7 +272,7 @@ export default function ContactDetail() {
               <select id="edit-category"
                 value={editData.category || 'prospecto'}
                 onChange={(e) => setEditData({ ...editData, category: e.target.value as Contact['category'] })}
-                className="text-ios-body text-[#8e8e93] bg-transparent outline-none text-right appearance-none"
+                className="text-ios-body text-[#6b7280] bg-transparent outline-none text-right appearance-none"
               >
                 <option value="prospecto">Prospecto</option>
                 <option value="cliente">Cliente</option>
@@ -296,7 +292,7 @@ export default function ContactDetail() {
             <AlertDialogContent className="rounded-[14px] max-w-[270px] p-0 gap-0 border-0">
               <AlertDialogHeader className="p-4 pb-2 text-center">
                 <AlertDialogTitle className="text-ios-headline text-center">Eliminar contacto</AlertDialogTitle>
-                <AlertDialogDescription className="text-ios-footnote text-[#8e8e93] text-center">
+                <AlertDialogDescription className="text-ios-footnote text-[#6b7280] text-center">
                   Esta accion no se puede deshacer.
                 </AlertDialogDescription>
               </AlertDialogHeader>
@@ -360,10 +356,10 @@ export default function ContactDetail() {
           </h1>
           {/* Company - Body style */}
           {contact.company && (
-            <p className="text-ios-body text-[#8e8e93] mt-0.5">{contact.company}</p>
+            <p className="text-ios-body text-[#6b7280] mt-0.5">{contact.company}</p>
           )}
           {/* Category - Footnote style */}
-          <p className="text-ios-footnote text-[#8e8e93] mt-0.5 capitalize">{contact.category}</p>
+          <p className="text-ios-footnote text-[#6b7280] mt-0.5 capitalize">{contact.category}</p>
         </div>
 
         {/* Action Buttons - iOS Contact Card Style */}
@@ -371,6 +367,7 @@ export default function ContactDetail() {
           {contact.phone && (
             <>
               <button
+                aria-label="Enviar WhatsApp"
                 onClick={() => window.open('https://wa.me/' + formatPhoneForWhatsApp(contact.phone!), '_blank')}
                 className="flex flex-col items-center justify-center min-w-[68px] w-[68px] sm:w-[76px] h-[56px] sm:h-[60px] bg-white rounded-[10px] active:bg-[#e5e5ea] transition-colors"
               >
@@ -378,13 +375,14 @@ export default function ContactDetail() {
                 <span className="text-ios-tabbar text-[#007aff] mt-1">WhatsApp</span>
               </button>
               <button
+                aria-label="Llamar por telefono"
                 onClick={() => window.location.href = 'tel:' + cleanPhone(contact.phone!)}
                 className="flex flex-col items-center justify-center min-w-[68px] w-[68px] sm:w-[76px] h-[56px] sm:h-[60px] bg-white rounded-[10px] active:bg-[#e5e5ea] transition-colors"
               >
                 <Phone className="h-[26px] w-[26px] text-[#34c759] stroke-[1.5]" />
                 <span className="text-ios-tabbar text-[#007aff] mt-1">Llamar</span>
               </button>
-              <button className="flex flex-col items-center justify-center min-w-[68px] w-[68px] sm:w-[76px] h-[56px] sm:h-[60px] bg-white rounded-[10px] active:bg-[#e5e5ea] transition-colors">
+              <button aria-label="Videollamada" className="flex flex-col items-center justify-center min-w-[68px] w-[68px] sm:w-[76px] h-[56px] sm:h-[60px] bg-white rounded-[10px] active:bg-[#e5e5ea] transition-colors">
                 <Video className="h-[26px] w-[26px] text-[#34c759] stroke-[1.5]" />
                 <span className="text-ios-tabbar text-[#007aff] mt-1">Video</span>
               </button>
@@ -392,6 +390,7 @@ export default function ContactDetail() {
           )}
           {hasValidEmail && (
             <button
+              aria-label="Enviar email"
               onClick={() => window.location.href = 'mailto:' + contact.email}
               className="flex flex-col items-center justify-center min-w-[68px] w-[68px] sm:w-[76px] h-[56px] sm:h-[60px] bg-white rounded-[10px] active:bg-[#e5e5ea] transition-colors"
             >
@@ -410,7 +409,7 @@ export default function ContactDetail() {
                 className="w-full px-4 py-3 flex items-start justify-between active:bg-[#f2f2f7] border-b border-[rgba(60,60,67,0.29)] last:border-0 transition-colors"
               >
                 <div className="text-left">
-                  <p className="text-ios-footnote text-[#8e8e93]">telefono</p>
+                  <p className="text-ios-footnote text-[#6b7280]">telefono</p>
                   <p className="text-ios-body text-[#007aff]">{contact.phone}</p>
                 </div>
                 {copiedField === 'phone' ? (
@@ -426,7 +425,7 @@ export default function ContactDetail() {
                 className="w-full px-4 py-3 flex items-start justify-between active:bg-[#f2f2f7] border-b border-[rgba(60,60,67,0.29)] last:border-0 transition-colors"
               >
                 <div className="text-left min-w-0 flex-1">
-                  <p className="text-ios-footnote text-[#8e8e93]">email</p>
+                  <p className="text-ios-footnote text-[#6b7280]">email</p>
                   <p className="text-ios-body text-[#007aff] truncate pr-2">{contact.email}</p>
                 </div>
                 {copiedField === 'email' ? (
@@ -448,7 +447,7 @@ export default function ContactDetail() {
                 className="w-full px-4 py-3 flex items-start justify-between active:bg-[#f2f2f7] transition-colors"
               >
                 <div className="text-left flex-1 min-w-0">
-                  <p className="text-ios-footnote text-[#8e8e93]">ubicacion</p>
+                  <p className="text-ios-footnote text-[#6b7280]">ubicacion</p>
                   <p className="text-ios-body text-[#007aff] mt-0.5 pr-2">{contact.address}</p>
                 </div>
                 {copiedField === 'address' ? (
@@ -465,7 +464,7 @@ export default function ContactDetail() {
         <div className="mx-4 mt-8">
           <div className="bg-white rounded-[10px] overflow-hidden">
             <div className="px-4 py-3">
-              <p className="text-ios-footnote text-[#8e8e93] mb-2">Notas</p>
+              <p className="text-ios-footnote text-[#6b7280] mb-2">Notas</p>
               <textarea 
                 placeholder="Agregar nota..." 
                 className="w-full text-ios-body bg-transparent outline-none resize-none placeholder:text-[#c7c7cc]"
@@ -477,7 +476,7 @@ export default function ContactDetail() {
 
         {/* Metadata - Footnote style */}
         {contact.createdAt && (
-          <p className="text-center text-ios-footnote text-[#8e8e93] mt-8">
+          <p className="text-center text-ios-footnote text-[#6b7280] mt-8">
             {formatDate(contact.createdAt)}
           </p>
         )}

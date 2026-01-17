@@ -74,7 +74,7 @@ googleSheetsRoutes.post('/sync', async (c) => {
     const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId })
     const sheetNames = spreadsheet.data.sheets
       ?.map(s => s.properties?.title)
-      .filter(name => name && name !== 'Inicio') || []
+      .filter(name => name) || []
 
     let imported = 0
     let updated = 0
@@ -95,6 +95,7 @@ googleSheetsRoutes.post('/sync', async (c) => {
         const whatsapp = row[11]
         const category = row[2]
         const company = row[7]
+        const address = row[8]
 
         if (!name) continue
 
@@ -120,7 +121,8 @@ googleSheetsRoutes.post('/sync', async (c) => {
               email: contactEmail,
               phone: contactPhone,
               company: (company && company !== '-') ? company : sheetName,
-              category: 'prospecto',
+              category: "prospecto",
+            address: (address && address !== "-") ? address : null,
               updatedAt: new Date().toISOString(),
             })
             .where(eq(contacts.id, existing.id))
@@ -132,7 +134,8 @@ googleSheetsRoutes.post('/sync', async (c) => {
             email: contactEmail,
             phone: contactPhone,
             company: (company && company !== '-') ? company : sheetName,
-            category: 'prospecto',
+            category: "prospecto",
+            address: (address && address !== "-") ? address : null,
             tags: JSON.stringify([category || 'Sin categoria', sheetName]),
             score: 0,
           })

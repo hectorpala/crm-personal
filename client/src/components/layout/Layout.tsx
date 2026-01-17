@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Breadcrumb, BreadcrumbItem } from '@/components/ui/breadcrumb'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -23,6 +24,15 @@ const navigation = [
   { name: 'Mensajeria', href: '/messaging', icon: Mail },
   { name: 'Configuracion', href: '/settings', icon: Settings },
 ]
+
+const routeNames: Record<string, string> = {
+  '/': 'Dashboard',
+  '/contacts': 'Contactos',
+  '/pipeline': 'Pipeline',
+  '/tasks': 'Tareas',
+  '/messaging': 'Mensajeria',
+  '/settings': 'Configuracion',
+}
 
 interface LayoutProps {
   children: React.ReactNode
@@ -56,6 +66,44 @@ export default function Layout({ children }: LayoutProps) {
     }
     return location.pathname === href || location.pathname.startsWith(href + '/')
   }
+
+  // Generate breadcrumbs based on current path
+  const getBreadcrumbs = (): BreadcrumbItem[] => {
+    const pathname = location.pathname
+
+    if (pathname === '/') {
+      return []
+    }
+
+    const segments = pathname.split('/').filter(Boolean)
+    const breadcrumbs: BreadcrumbItem[] = []
+
+    let currentPath = ''
+    for (let i = 0; i < segments.length; i++) {
+      currentPath += '/' + segments[i]
+      const isLast = i === segments.length - 1
+      const routeName = routeNames[currentPath]
+
+      if (routeName) {
+        breadcrumbs.push({
+          label: routeName,
+          href: isLast ? undefined : currentPath,
+        })
+      } else {
+        const parentPath = '/' + segments.slice(0, i).join('/')
+        if (parentPath === '/contacts') {
+          breadcrumbs.push({ label: 'Detalle' })
+        } else {
+          breadcrumbs.push({ label: segments[i] })
+        }
+      }
+    }
+
+    return breadcrumbs
+  }
+
+  const breadcrumbs = getBreadcrumbs()
+  const showBreadcrumbs = location.pathname !== '/'
 
   const SidebarContent = () => (
     <>
@@ -125,6 +173,14 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="flex h-screen bg-background">
+      {/* Skip to main content link - accessibility */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        Ir al contenido principal
+      </a>
+
       {/* Mobile Header */}
       <div className="fixed top-0 left-0 right-0 z-40 flex h-14 items-center justify-between border-b bg-card px-4 md:hidden">
         <h1 className="text-lg font-semibold">CRM Personal</h1>
@@ -167,8 +223,12 @@ export default function Layout({ children }: LayoutProps) {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-auto pt-14 md:pt-0">
+      <main id="main-content" className="flex-1 overflow-auto pt-14 md:pt-0" tabIndex={-1}>
         <div className="h-full p-4 md:p-6">
+          {/* Breadcrumbs */}
+          {showBreadcrumbs && (
+            <Breadcrumb items={breadcrumbs} className="mb-4" />
+          )}
           {children}
         </div>
       </main>

@@ -16,6 +16,7 @@ import {
 import { Mail, MessageCircle, Send, Loader2, CheckCircle2, ExternalLink } from 'lucide-react'
 import type { Contact } from '@/types'
 import { useToast } from '@/hooks/use-toast'
+import { LoadingState } from '@/components/ui/loading-state'
 
 export default function Messaging() {
   const [channel, setChannel] = useState<'email' | 'whatsapp'>('email')
@@ -27,7 +28,7 @@ export default function Messaging() {
   const [result, setResult] = useState<{ sent?: number; failed?: number; links?: any[] } | null>(null)
   const { toast } = useToast()
 
-  const { data: contacts = [] } = useQuery<Contact[]>({
+  const { data: contacts = [], isLoading } = useQuery<Contact[]>({
     queryKey: ['contacts'],
     queryFn: async () => {
       const res = await fetch('/api/contacts')
@@ -137,6 +138,10 @@ export default function Messaging() {
     } finally {
       setIsSending(false)
     }
+  }
+
+  if (isLoading) {
+    return <LoadingState message="Cargando contactos..." />
   }
 
   return (

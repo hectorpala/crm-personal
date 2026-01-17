@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
@@ -21,16 +21,27 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Plus, Search, RefreshCw, Mail, Phone, Loader2, MessageCircle, MapPin, AlertCircle } from 'lucide-react'
+import { Plus, Search, RefreshCw, Mail, Phone, Loader2, MessageCircle, MapPin, AlertCircle, Send, X, CheckSquare } from 'lucide-react'
 import type { Contact } from '@/types'
 import { useToast } from '@/hooks/use-toast'
 import { LoadingState } from '@/components/ui/loading-state'
 import { validators } from '@/components/ui/form-field'
 import { getCategoryColor } from '@/lib/category-styles'
+import { Checkbox } from '@/components/ui/checkbox'
 
 
 const cleanPhone = (phone: string) => {
   return phone.replace(/[^0-9+]/g, '')
+}
+
+// Formato para WhatsApp: agrega codigo de pais Mexico (+52) si no lo tiene
+const formatPhoneForWhatsApp = (phone: string) => {
+  const cleaned = phone.replace(/[^0-9]/g, '')
+  // Si ya tiene 12+ digitos, asumimos que tiene codigo de pais
+  if (cleaned.length >= 12) return cleaned
+  // Si tiene 10 digitos (numero mexicano), agregar 52
+  if (cleaned.length === 10) return '52' + cleaned
+  return cleaned
 }
 
 interface FormErrors {
@@ -56,6 +67,13 @@ export default function Contacts() {
   })
   const [formErrors, setFormErrors] = useState<FormErrors>({})
   const [touched, setTouched] = useState<Record<string, boolean>>({})
+
+  // Mass WhatsApp states
+  const [selectedContacts, setSelectedContacts] = useState<number[]>([])
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false)
+  const [whatsAppMessage, setWhatsAppMessage] = useState('')
+  const [selectionMode, setSelectionMode] = useState(false)
+
   const queryClient = useQueryClient()
   const { toast } = useToast()
 
@@ -101,7 +119,6 @@ export default function Contacts() {
     setTouched({})
   }
 
-  // Validate field on blur
   const validateField = (field: string, value: string) => {
     let error: string | undefined
 
@@ -123,7 +140,6 @@ export default function Contacts() {
 
   const handleFieldChange = (field: string, value: string) => {
     setNewContact(prev => ({ ...prev, [field]: value }))
-    // Validate on change if field was already touched
     if (touched[field]) {
       validateField(field, value)
     }
@@ -134,31 +150,7 @@ export default function Contacts() {
     validateField(field, newContact[field as keyof typeof newContact])
   }
 
-  // Auto-sync on page load
-  useEffect(() => {
-    const autoSync = async () => {
-      setIsSyncing(true)
-      try {
-        await fetch('/api/google-sheets/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ spreadsheetId: '1AjQyoFIdEuGpf2UNZsbMVvg7MNuonwxm8rfdw5yv0eo' })
-        })
-        refetch()
-      } catch (error) {
-        toast({
-          variant: 'destructive',
-          title: 'Error de sincronizacion',
-          description: 'No se pudo sincronizar con Google Sheets. Verifica tu conexion.',
-        })
-      } finally {
-        setIsSyncing(false)
-      }
-    }
-    autoSync()
-  }, [refetch, toast])
 
-  // Extract unique cities from contact tags
   const cities = useMemo(() => {
     const citySet = new Set<string>()
     contacts.forEach((contact) => {
@@ -208,7 +200,7 @@ export default function Contacts() {
   const handleWhatsApp = (e: React.MouseEvent, phone: string) => {
     e.preventDefault()
     e.stopPropagation()
-    window.open('https://wa.me/' + cleanPhone(phone), '_blank')
+    window.open('https://wa.me/' + formatPhoneForWhatsApp(phone), '_blank')
   }
 
   const handleCall = (e: React.MouseEvent, phone: string) => {
@@ -225,32 +217,29 @@ export default function Contacts() {
 
   const handleCreateContact = (e: React.FormEvent) => {
     e.preventDefault()
-    
-    // Validate all fields
+
     const errors: FormErrors = {}
-    
+
     const nameError = validators.required(newContact.name, 'El nombre')
     if (nameError) errors.name = nameError
-    
+
     if (newContact.email) {
       const emailError = validators.email(newContact.email)
       if (emailError) errors.email = emailError
     }
-    
+
     if (newContact.phone) {
       const phoneError = validators.phone(newContact.phone)
       if (phoneError) errors.phone = phoneError
     }
-    
-    // Require at least email or phone
+
     if (!newContact.email && !newContact.phone) {
       errors.general = 'Se requiere al menos un email o telefono'
     }
-    
+
     setFormErrors(errors)
     setTouched({ name: true, email: true, phone: true })
-    
-    // Check if there are any errors
+
     if (Object.keys(errors).length > 0) {
       if (errors.general) {
         toast({
@@ -261,8 +250,72 @@ export default function Contacts() {
       }
       return
     }
-    
+
     createMutation.mutate(newContact)
+  }
+
+  // Mass WhatsApp handlers
+  const toggleContactSelection = (contactId: number, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    setSelectedContacts(prev =>
+      prev.includes(contactId)
+        ? prev.filter(id => id !== contactId)
+        : [...prev, contactId]
+    )
+  }
+
+  const toggleSelectionMode = () => {
+    if (selectionMode) {
+      setSelectedContacts([])
+    }
+    setSelectionMode(!selectionMode)
+  }
+
+  const selectAllVisible = () => {
+    const contactsWithPhone = filteredContacts.filter(c => c.phone).map(c => c.id)
+    setSelectedContacts(contactsWithPhone)
+  }
+
+  const clearSelection = () => {
+    setSelectedContacts([])
+  }
+
+  const openWhatsAppModal = () => {
+    if (selectedContacts.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Sin seleccion',
+        description: 'Selecciona al menos un contacto con telefono.',
+      })
+      return
+    }
+    setIsWhatsAppModalOpen(true)
+  }
+
+  const sendWhatsAppToContact = (phone: string) => {
+    const encodedMessage = encodeURIComponent(whatsAppMessage)
+    const formattedPhone = formatPhoneForWhatsApp(phone)
+    window.open('https://wa.me/' + formattedPhone + '?text=' + encodedMessage, '_blank')
+  }
+
+  const selectedContactsList = contacts.filter(c => selectedContacts.includes(c.id) && c.phone)
+
+  // Helper to get display name for company (remove URLs)
+  const getDisplayCompany = (company: string | null | undefined) => {
+    if (!company) return null
+    // If it looks like a URL, extract domain or return null
+    if (company.includes('http') || company.includes('www.')) {
+      try {
+        const url = new URL(company.startsWith('http') ? company : 'https://' + company)
+        return url.hostname.replace('www.', '')
+      } catch {
+        return company.length > 30 ? company.substring(0, 30) + '...' : company
+      }
+    }
+    return company.length > 30 ? company.substring(0, 30) + '...' : company
   }
 
   if (isLoading) {
@@ -280,6 +333,22 @@ export default function Contacts() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button
+            variant={selectionMode ? "default" : "outline"}
+            onClick={toggleSelectionMode}
+          >
+            {selectionMode ? (
+              <>
+                <X className="mr-2 h-4 w-4" />
+                Cancelar
+              </>
+            ) : (
+              <>
+                <CheckSquare className="mr-2 h-4 w-4" />
+                Seleccionar
+              </>
+            )}
+          </Button>
           <Button variant="outline" onClick={handleSync} disabled={isSyncing}>
             <RefreshCw className={'mr-2 h-4 w-4' + (isSyncing ? ' animate-spin' : '')} />
             Sincronizar
@@ -299,7 +368,6 @@ export default function Contacts() {
                 <DialogTitle>Nuevo Contacto</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleCreateContact} className="space-y-4" noValidate>
-                {/* Name field */}
                 <div className="space-y-2">
                   <Label htmlFor="name" className="flex items-center gap-1">
                     Nombre <span className="text-destructive">*</span>
@@ -322,8 +390,7 @@ export default function Contacts() {
                     </p>
                   )}
                 </div>
-                
-                {/* Email field */}
+
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <Input
@@ -345,8 +412,7 @@ export default function Contacts() {
                     </p>
                   )}
                 </div>
-                
-                {/* Phone field */}
+
                 <div className="space-y-2">
                   <Label htmlFor="phone">Telefono</Label>
                   <Input
@@ -368,16 +434,14 @@ export default function Contacts() {
                     </p>
                   )}
                 </div>
-                
-                {/* General error for email/phone requirement */}
+
                 {formErrors.general && (
                   <p className="flex items-center gap-1.5 text-sm text-destructive p-2 bg-destructive/10 rounded" role="alert">
                     <AlertCircle className="h-3.5 w-3.5" />
                     {formErrors.general}
                   </p>
                 )}
-                
-                {/* Company field */}
+
                 <div className="space-y-2">
                   <Label htmlFor="company">Empresa</Label>
                   <Input
@@ -388,8 +452,7 @@ export default function Contacts() {
                     autoComplete="organization"
                   />
                 </div>
-                
-                {/* Address field */}
+
                 <div className="space-y-2">
                   <Label htmlFor="address">Ubicacion</Label>
                   <Textarea
@@ -400,8 +463,7 @@ export default function Contacts() {
                     rows={2}
                   />
                 </div>
-                
-                {/* Category field */}
+
                 <div className="space-y-2">
                   <Label htmlFor="category">Categoria</Label>
                   <Select
@@ -419,7 +481,7 @@ export default function Contacts() {
                     </SelectContent>
                   </Select>
                 </div>
-                
+
                 <div className="flex gap-2 pt-4">
                   <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} className="flex-1">
                     Cancelar
@@ -438,11 +500,33 @@ export default function Contacts() {
         </div>
       </div>
 
+      {selectionMode && (
+        <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+          <div className="flex items-center gap-4">
+            <span className="font-medium">{selectedContacts.length} seleccionados</span>
+            <Button variant="ghost" size="sm" onClick={selectAllVisible}>
+              Seleccionar todos ({filteredContacts.filter(c => c.phone).length})
+            </Button>
+            <Button variant="ghost" size="sm" onClick={clearSelection}>
+              Limpiar seleccion
+            </Button>
+          </div>
+          <Button
+            onClick={openWhatsAppModal}
+            disabled={selectedContacts.length === 0}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            <MessageCircle className="mr-2 h-4 w-4" />
+            Enviar WhatsApp ({selectedContacts.length})
+          </Button>
+        </div>
+      )}
+
       <div className="flex gap-4 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nombre, email o empresa..."
+            aria-label="Buscar contactos" placeholder="Buscar por nombre, email o empresa..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -485,95 +569,188 @@ export default function Contacts() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredContacts.map((contact) => (
-            <Link key={contact.id} to={"/contacts/" + contact.id}>
-              <Card className="cursor-pointer transition-shadow hover:shadow-md">
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-base">{contact.name}</CardTitle>
-                      {contact.company && (
-                        <p className="text-sm text-muted-foreground truncate">
-                          {contact.company}
-                        </p>
+            <div key={contact.id} className="relative h-full">
+              {selectionMode && contact.phone && (
+                <div
+                  className="absolute top-3 left-3 z-10"
+                  onClick={(e) => toggleContactSelection(contact.id, e)}
+                >
+                  <Checkbox
+                    checked={selectedContacts.includes(contact.id)}
+                    className="h-5 w-5 bg-white border-2"
+                  />
+                </div>
+              )}
+              <Link to={selectionMode ? "#" : "/contacts/" + contact.id} onClick={(e) => {
+                if (selectionMode && contact.phone) {
+                  e.preventDefault()
+                  toggleContactSelection(contact.id)
+                }
+              }} className="block h-full">
+                <Card className={'h-full flex flex-col cursor-pointer transition-all hover:shadow-md ' +
+                  (selectionMode && selectedContacts.includes(contact.id)
+                    ? 'ring-2 ring-green-500 bg-green-50'
+                    : '') +
+                  (selectionMode && !contact.phone ? ' opacity-50' : '')}>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className={'flex-1 min-w-0 ' + (selectionMode ? 'ml-8' : '')}>
+                        <CardTitle className="text-base truncate">{contact.name}</CardTitle>
+                        {getDisplayCompany(contact.company) && (
+                          <p className="text-sm text-muted-foreground truncate">
+                            {getDisplayCompany(contact.company)}
+                          </p>
+                        )}
+                      </div>
+                      <Badge className={'shrink-0 ' + getCategoryColor(contact.category)}>
+                        {contact.category}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="flex-1 flex flex-col">
+                    <div className="space-y-1 text-sm flex-1">
+                      {contact.phone && (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Phone className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{contact.phone}</span>
+                        </div>
+                      )}
+                      {!contact.email.includes('@phone') && !contact.email.includes('@whatsapp') && (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Mail className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{contact.email}</span>
+                        </div>
+                      )}
+                      {contact.tags && contact.tags[1] && (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <MapPin className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{contact.tags[1]}</span>
+                        </div>
                       )}
                     </div>
-                    <Badge className={getCategoryColor(contact.category)}>
-                      {contact.category}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-1 text-sm">
-                    {contact.phone && (
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Phone className="h-3 w-3" />
-                        {contact.phone}
+                    {contact.tags && contact.tags.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-1">
+                        {contact.tags.slice(0, 1).map((tag) => (
+                          <Badge key={tag} variant="secondary" className="text-xs truncate max-w-[150px]">
+                            {tag}
+                          </Badge>
+                        ))}
                       </div>
                     )}
-                    {!contact.email.includes('@phone') && !contact.email.includes('@whatsapp') && (
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Mail className="h-3 w-3" />
-                        {contact.email}
-                      </div>
-                    )}
-                    {contact.tags && contact.tags[1] && (
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <MapPin className="h-3 w-3" />
-                        {contact.tags[1]}
-                      </div>
-                    )}
-                  </div>
-                  {contact.tags && contact.tags.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-1">
-                      {contact.tags.slice(0, 1).map((tag) => (
-                        <Badge key={tag} variant="secondary" className="text-xs">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
 
-                  <div className="mt-4 pt-3 border-t flex gap-2">
-                    {contact.phone && (
-                      <>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1 h-8"
-                          onClick={(e) => handleWhatsApp(e, contact.phone!)}
-                        >
-                          <MessageCircle className="h-4 w-4 mr-1 text-green-600" />
-                          <span className="text-xs">WhatsApp</span>
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1 h-8"
-                          onClick={(e) => handleCall(e, contact.phone!)}
-                        >
-                          <Phone className="h-4 w-4 mr-1 text-blue-600" />
-                          <span className="text-xs">Llamar</span>
-                        </Button>
-                      </>
+                    {!selectionMode && (
+                      <div className="mt-4 pt-3 border-t flex gap-2">
+                        {contact.phone && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1 h-8"
+                              onClick={(e) => handleWhatsApp(e, contact.phone!)}
+                            >
+                              <MessageCircle className="h-4 w-4 mr-1 text-green-600" />
+                              <span className="text-xs">WhatsApp</span>
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1 h-8"
+                              onClick={(e) => handleCall(e, contact.phone!)}
+                            >
+                              <Phone className="h-4 w-4 mr-1 text-blue-600" />
+                              <span className="text-xs">Llamar</span>
+                            </Button>
+                          </>
+                        )}
+                        {!contact.email.includes('@phone') && !contact.email.includes('@whatsapp') && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 h-8"
+                            onClick={(e) => handleEmail(e, contact.email)}
+                          >
+                            <Mail className="h-4 w-4 mr-1 text-orange-600" />
+                            <span className="text-xs">Email</span>
+                          </Button>
+                        )}
+                      </div>
                     )}
-                    {!contact.email.includes('@phone') && !contact.email.includes('@whatsapp') && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 h-8"
-                        onClick={(e) => handleEmail(e, contact.email)}
-                      >
-                        <Mail className="h-4 w-4 mr-1 text-orange-600" />
-                        <span className="text-xs">Email</span>
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
+                  </CardContent>
+                </Card>
+              </Link>
+            </div>
           ))}
         </div>
       )}
+
+      <Dialog open={isWhatsAppModalOpen} onOpenChange={setIsWhatsAppModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageCircle className="h-5 w-5 text-green-600" />
+              Envio Masivo de WhatsApp
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="whatsapp-message">Mensaje para todos los contactos</Label>
+              <Textarea
+                id="whatsapp-message"
+                placeholder="Escribe tu mensaje aqui... Este mensaje se enviara a todos los contactos seleccionados."
+                value={whatsAppMessage}
+                onChange={(e) => setWhatsAppMessage(e.target.value)}
+                rows={4}
+                className="resize-none"
+              />
+              <p className="text-xs text-muted-foreground">
+                Puedes personalizar el mensaje antes de enviarlo a cada contacto.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>{selectedContactsList.length} contactos seleccionados</Label>
+              <div className="border rounded-lg divide-y max-h-[300px] overflow-y-auto">
+                {selectedContactsList.map((contact) => (
+                  <div key={contact.id} className="flex items-center justify-between p-3 hover:bg-muted/50">
+                    <div className="min-w-0 flex-1 mr-3">
+                      <p className="font-medium truncate">{contact.name}</p>
+                      <p className="text-sm text-muted-foreground truncate">{contact.phone}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => sendWhatsAppToContact(contact.phone!)}
+                      disabled={!whatsAppMessage.trim()}
+                      className="bg-green-600 hover:bg-green-700 shrink-0"
+                    >
+                      <Send className="h-4 w-4 mr-1" />
+                      Enviar
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <p className="text-sm text-amber-800">
+                <strong>Nota:</strong> Cada boton Enviar abrira WhatsApp Web con el mensaje pre-cargado.
+                Debes hacer clic en enviar en WhatsApp para cada contacto. Esto es necesario porque WhatsApp
+                no permite envios automaticos sin su API de pago.
+              </p>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsWhatsAppModalOpen(false)}
+                className="flex-1"
+              >
+                Cerrar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
