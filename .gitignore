@@ -37,3 +37,9 @@ drizzle/meta/
 # Temporary files
 tmp/
 temp/
+
+# Credentials
+credentials.json
+token.json
+*.pem
+*.key
