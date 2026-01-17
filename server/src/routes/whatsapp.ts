@@ -11,7 +11,7 @@ function cleanPhone(phone: string): string {
   if (!cleaned.startsWith('+')) {
     // Add Mexico country code if not present
     if (!cleaned.startsWith('52')) {
-      cleaned = '52' + cleaned
+      cleaned = '521' + cleaned
     }
   } else {
     cleaned = cleaned.substring(1) // Remove + for wa.me URL

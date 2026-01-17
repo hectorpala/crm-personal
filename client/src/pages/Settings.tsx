@@ -302,20 +302,20 @@ export default function Settings() {
         {/* Sync Settings */}
         <Card>
           <CardHeader>
-            <CardTitle>Sincronizacion Automatica</CardTitle>
+            <CardTitle>Sincronizacion</CardTitle>
             <CardDescription>
-              Los contactos se sincronizan automaticamente al entrar a la pagina de Contactos
+              Los contactos se cargan de la base de datos al abrir la app
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium">Auto-sync al cargar</p>
+                <p className="font-medium">Sincronizacion con Google Sheets</p>
                 <p className="text-sm text-muted-foreground">
-                  Actualiza contactos cada vez que entras a Contactos
+                  Solo se ejecuta al presionar el boton Sincronizar
                 </p>
               </div>
-              <Badge className="bg-green-100 text-green-800">Activo</Badge>
+              <Badge variant="outline">Manual</Badge>
             </div>
           </CardContent>
         </Card>
