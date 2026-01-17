@@ -4,8 +4,18 @@ import { contacts, settings } from '../db/schema'
 import { eq } from 'drizzle-orm'
 import { google } from 'googleapis'
 import * as fs from 'fs'
+import * as path from 'path'
 
 export const googleSheetsRoutes = new Hono()
+
+// Use data directory for credentials in production
+const dataDir = process.env.DATABASE_PATH ? path.dirname(process.env.DATABASE_PATH) : '.'
+const credentialsPath = path.join(dataDir, 'credentials.json')
+const tokenPath = path.join(dataDir, 'token.json')
+
+// Fallback to current directory if not found in data dir
+const getCredentialsPath = () => fs.existsSync(credentialsPath) ? credentialsPath : 'credentials.json'
+const getTokenPath = () => fs.existsSync(tokenPath) ? tokenPath : 'token.json'
 
 googleSheetsRoutes.get('/auth-url', async (c) => {
   try {
@@ -34,7 +44,7 @@ googleSheetsRoutes.get('/callback', async (c) => {
   try {
     const oauth2Client = getOAuth2Client()
     const { tokens } = await oauth2Client.getToken(code)
-    fs.writeFileSync('token.json', JSON.stringify(tokens))
+    fs.writeFileSync(getTokenPath(), JSON.stringify(tokens))
     return c.json({ success: true })
   } catch (error) {
     return c.json({ error: 'Failed to exchange code for tokens' }, 500)
@@ -51,9 +61,10 @@ googleSheetsRoutes.post('/sync', async (c) => {
 
   try {
     const oauth2Client = getOAuth2Client()
+    const tokPath = getTokenPath()
 
-    if (fs.existsSync('token.json')) {
-      const tokens = JSON.parse(fs.readFileSync('token.json', 'utf8'))
+    if (fs.existsSync(tokPath)) {
+      const tokens = JSON.parse(fs.readFileSync(tokPath, 'utf8'))
       oauth2Client.setCredentials(tokens)
     } else {
       return c.json({ error: 'Not authenticated' }, 401)
@@ -145,13 +156,14 @@ googleSheetsRoutes.post('/sync', async (c) => {
 })
 
 googleSheetsRoutes.get('/status', async (c) => {
-  const connected = fs.existsSync('token.json')
+  const tokPath = getTokenPath()
+  const connected = fs.existsSync(tokPath)
   let email = null
 
   if (connected) {
     try {
       const oauth2Client = getOAuth2Client()
-      const tokens = JSON.parse(fs.readFileSync('token.json', 'utf8'))
+      const tokens = JSON.parse(fs.readFileSync(tokPath, 'utf8'))
       oauth2Client.setCredentials(tokens)
       
       const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client })
@@ -161,7 +173,7 @@ googleSheetsRoutes.get('/status', async (c) => {
       // Token might not have userinfo scope, try Gmail
       try {
         const oauth2Client = getOAuth2Client()
-        const tokens = JSON.parse(fs.readFileSync('token.json', 'utf8'))
+        const tokens = JSON.parse(fs.readFileSync(tokPath, 'utf8'))
         oauth2Client.setCredentials(tokens)
         
         const gmail = google.gmail({ version: 'v1', auth: oauth2Client })
@@ -187,8 +199,9 @@ googleSheetsRoutes.get('/status', async (c) => {
 
 googleSheetsRoutes.delete('/disconnect', async (c) => {
   try {
-    if (fs.existsSync('token.json')) {
-      fs.unlinkSync('token.json')
+    const tokPath = getTokenPath()
+    if (fs.existsSync(tokPath)) {
+      fs.unlinkSync(tokPath)
     }
     return c.json({ success: true })
   } catch (error) {
@@ -197,18 +210,22 @@ googleSheetsRoutes.delete('/disconnect', async (c) => {
 })
 
 function getOAuth2Client() {
+  const credPath = getCredentialsPath()
+  const isProduction = process.env.NODE_ENV === 'production'
+  const baseUrl = isProduction ? 'https://crm-personal.fly.dev' : 'http://localhost:3000'
+  
   let credentials = {
     client_id: process.env.GOOGLE_CLIENT_ID || '',
     client_secret: process.env.GOOGLE_CLIENT_SECRET || '',
-    redirect_uri: 'http://localhost:3000/api/google-sheets/callback',
+    redirect_uri: baseUrl + '/api/google-sheets/callback',
   }
 
-  if (fs.existsSync('credentials.json')) {
-    const creds = JSON.parse(fs.readFileSync('credentials.json', 'utf8'))
+  if (fs.existsSync(credPath)) {
+    const creds = JSON.parse(fs.readFileSync(credPath, 'utf8'))
     credentials = {
       client_id: creds.web?.client_id || creds.installed?.client_id || '',
       client_secret: creds.web?.client_secret || creds.installed?.client_secret || '',
-      redirect_uri: 'http://localhost:3000/api/google-sheets/callback',
+      redirect_uri: baseUrl + '/api/google-sheets/callback',
     }
   }
 
