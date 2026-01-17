@@ -1,0 +1,176 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Apple iOS System Colors */
+    --ios-blue: #007aff;
+    --ios-green: #34c759;
+    --ios-red: #ff3b30;
+    --ios-orange: #ff9500;
+    --ios-yellow: #ffcc00;
+    --ios-purple: #af52de;
+    --ios-pink: #ff2d55;
+    --ios-teal: #5ac8fa;
+
+    /* Apple iOS Grays */
+    --ios-gray: #8e8e93;
+    --ios-gray-2: #aeaeb2;
+    --ios-gray-3: #c7c7cc;
+    --ios-gray-4: #d1d1d6;
+    --ios-gray-5: #e5e5ea;
+    --ios-gray-6: #f2f2f7;
+
+    /* Apple iOS Backgrounds */
+    --ios-bg-primary: #ffffff;
+    --ios-bg-secondary: #f2f2f7;
+    --ios-bg-tertiary: #ffffff;
+
+    /* Apple iOS Separators */
+    --ios-separator: rgba(60, 60, 67, 0.29);
+    --ios-separator-opaque: #c6c6c8;
+
+    /* Shadcn compatibility */
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 0%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 0%;
+    --primary: 211 100% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 5% 96%;
+    --secondary-foreground: 0 0% 0%;
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
+    --accent: 240 5% 96%;
+    --accent-foreground: 0 0% 0%;
+    --destructive: 0 100% 59%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 78%;
+    --input: 0 0% 78%;
+    --ring: 211 100% 50%;
+    --radius: 0.625rem;
+  }
+
+  * {
+    @apply border-border;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html {
+    /* Apple system font stack */
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    /* Base font size 17px (Apple standard) */
+    font-size: 17px;
+    line-height: 1.29412; /* 22px / 17px - Apple's body line height */
+    letter-spacing: -0.43px; /* Apple's tracking for 17pt */
+    color: #000000;
+  }
+
+  body {
+    background-color: var(--ios-bg-secondary);
+    min-height: 100vh;
+  }
+}
+
+/* Apple iOS Typography Classes */
+@layer utilities {
+  /* Large Title - 34pt, Bold */
+  .text-ios-largeTitle {
+    font-size: 34px;
+    font-weight: 700;
+    line-height: 1.20588; /* 41px */
+    letter-spacing: 0.4px;
+  }
+
+  /* Title 1 - 28pt, Regular */
+  .text-ios-title1 {
+    font-size: 28px;
+    font-weight: 400;
+    line-height: 1.21429; /* 34px */
+    letter-spacing: 0.36px;
+  }
+
+  /* Title 2 - 22pt, Regular */
+  .text-ios-title2 {
+    font-size: 22px;
+    font-weight: 400;
+    line-height: 1.27273; /* 28px */
+    letter-spacing: 0.35px;
+  }
+
+  /* Title 3 - 20pt, Regular */
+  .text-ios-title3 {
+    font-size: 20px;
+    font-weight: 400;
+    line-height: 1.2; /* 24px */
+    letter-spacing: 0.38px;
+  }
+
+  /* Headline - 17pt, Semibold */
+  .text-ios-headline {
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.29412; /* 22px */
+    letter-spacing: -0.43px;
+  }
+
+  /* Body - 17pt, Regular */
+  .text-ios-body {
+    font-size: 17px;
+    font-weight: 400;
+    line-height: 1.29412; /* 22px */
+    letter-spacing: -0.43px;
+  }
+
+  /* Callout - 16pt, Regular */
+  .text-ios-callout {
+    font-size: 16px;
+    font-weight: 400;
+    line-height: 1.3125; /* 21px */
+    letter-spacing: -0.32px;
+  }
+
+  /* Subhead - 15pt, Regular */
+  .text-ios-subhead {
+    font-size: 15px;
+    font-weight: 400;
+    line-height: 1.33333; /* 20px */
+    letter-spacing: -0.24px;
+  }
+
+  /* Footnote - 13pt, Regular */
+  .text-ios-footnote {
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.38462; /* 18px */
+    letter-spacing: -0.08px;
+  }
+
+  /* Caption 1 - 12pt, Regular */
+  .text-ios-caption1 {
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.33333; /* 16px */
+    letter-spacing: 0px;
+  }
+
+  /* Caption 2 - 11pt, Regular */
+  .text-ios-caption2 {
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 1.18182; /* 13px */
+    letter-spacing: 0.07px;
+  }
+
+  /* Tab Bar - 10pt, Medium */
+  .text-ios-tabbar {
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1.2; /* 12px */
+    letter-spacing: 0.12px;
+  }
+}

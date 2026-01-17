@@ -1,0 +1,13 @@
+node_modules
+*.db
+*.db-journal
+.env
+.env.local
+.git
+.gitignore
+.DS_Store
+dist
+client/dist
+server/dist
+*.log
+.claude
