@@ -12,6 +12,13 @@ export const contacts = sqliteTable('contacts', {
   tags: text('tags').default('[]'),
   avatarUrl: text('avatar_url'),
   score: integer('score').default(0),
+  // Campos de gestion comercial
+  leadSource: text('lead_source', { enum: ['referido', 'web', 'redes', 'evento', 'llamada_fria', 'otro'] }),
+  leadScore: integer('lead_score').default(0),
+  potentialValue: real('potential_value').default(0),
+  lastContactDate: text('last_contact_date'),
+  nextFollowup: text('next_followup'),
+  notes: text('notes'),
   createdAt: text('created_at').default('CURRENT_TIMESTAMP'),
   updatedAt: text('updated_at').default('CURRENT_TIMESTAMP'),
 })

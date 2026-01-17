@@ -15,15 +15,20 @@ contactsRoutes.get('/', async (c) => {
   return c.json(parsed)
 })
 
-// Get single contact
+// Get single contact (also updates lastContactDate)
 contactsRoutes.get('/:id', async (c) => {
   const id = parseInt(c.req.param('id'))
   const contact = await db.select().from(contacts).where(eq(contacts.id, id)).get()
   if (!contact) {
     return c.json({ error: 'Contact not found' }, 404)
   }
+  // Update lastContactDate when viewing a contact
+  await db.update(contacts)
+    .set({ lastContactDate: new Date().toISOString() })
+    .where(eq(contacts.id, id))
   return c.json({
     ...contact,
+    lastContactDate: new Date().toISOString(),
     tags: JSON.parse(contact.tags || '[]')
   })
 })
@@ -41,6 +46,11 @@ contactsRoutes.post('/', async (c) => {
     tags: JSON.stringify(body.tags || []),
     avatarUrl: body.avatarUrl,
     googleSheetRowId: body.googleSheetRowId,
+    leadSource: body.leadSource,
+    leadScore: body.leadScore || 0,
+    potentialValue: body.potentialValue || 0,
+    nextFollowup: body.nextFollowup,
+    notes: body.notes,
   }).returning()
   return c.json(result[0], 201)
 })
@@ -59,6 +69,11 @@ contactsRoutes.put('/:id', async (c) => {
       category: body.category,
       tags: JSON.stringify(body.tags || []),
       avatarUrl: body.avatarUrl,
+      leadSource: body.leadSource,
+      leadScore: body.leadScore,
+      potentialValue: body.potentialValue,
+      nextFollowup: body.nextFollowup,
+      notes: body.notes,
       updatedAt: new Date().toISOString(),
     })
     .where(eq(contacts.id, id))

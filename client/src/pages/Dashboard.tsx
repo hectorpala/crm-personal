@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Users, Target, CheckSquare, DollarSign, Calendar, User } from 'lucide-react'
+import { Users, Target, CheckSquare, DollarSign, Calendar, User, Bell } from 'lucide-react'
 import { useStore } from '@/store'
 import { contactsAPI, opportunitiesAPI, tasksAPI } from '@/lib/api'
 import type { Contact, Opportunity, Task } from '@/types'
@@ -102,6 +102,14 @@ export default function Dashboard() {
       .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
       .slice(0, 5)
   }, [tasks])
+  const upcomingFollowups = useMemo(() => {
+    const now = new Date()
+    return [...contacts]
+      .filter(c => c.nextFollowup && new Date(c.nextFollowup) >= now)
+      .sort((a, b) => new Date(a.nextFollowup!).getTime() - new Date(b.nextFollowup!).getTime())
+      .slice(0, 5)
+  }, [contacts])
+
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr)
@@ -162,8 +170,8 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Recent Contacts & Upcoming Tasks */}
-      <div className="grid gap-4 md:grid-cols-2">
+      {/* Recent Contacts, Upcoming Tasks & Followups */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -230,6 +238,47 @@ export default function Dashboard() {
                       <Badge variant={getPriorityColor(task.priority) as any}>
                         {task.priority}
                       </Badge>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5" />
+              Proximos Seguimientos
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {upcomingFollowups.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No hay seguimientos programados
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {upcomingFollowups.map((contact) => (
+                  <Link key={contact.id} to={`/contacts/${contact.id}`}>
+                    <div className="flex items-center justify-between p-2 rounded-lg hover:bg-accent/50 cursor-pointer transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center">
+                          <Bell className="h-4 w-4 text-orange-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{contact.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatDate(contact.nextFollowup!)}
+                          </p>
+                        </div>
+                      </div>
+                      {contact.potentialValue && contact.potentialValue > 0 && (
+                        <span className="text-xs font-medium text-green-600">
+                          ${new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 }).format(contact.potentialValue)}
+                        </span>
+                      )}
                     </div>
                   </Link>
                 ))}

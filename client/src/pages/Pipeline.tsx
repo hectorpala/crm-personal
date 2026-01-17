@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Settings, DollarSign, Loader2, Trash2 } from 'lucide-react'
+import { Plus, DollarSign, Loader2, Trash2 } from 'lucide-react'
 import type { PipelineStage, Opportunity, Contact } from '@/types'
 import { LoadingState } from '@/components/ui/loading-state'
 import { useToast } from '@/hooks/use-toast'

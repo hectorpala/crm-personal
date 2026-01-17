@@ -1,3 +1,5 @@
+export type LeadSource = 'referido' | 'web' | 'redes' | 'evento' | 'llamada_fria' | 'otro'
+
 export interface Contact {
   id: number
   googleSheetRowId?: string
@@ -10,6 +12,13 @@ export interface Contact {
   tags: string[]
   avatarUrl?: string
   score: number
+  // Campos de gestion comercial
+  leadSource?: LeadSource
+  leadScore?: number
+  potentialValue?: number
+  lastContactDate?: string
+  nextFollowup?: string
+  notes?: string
   createdAt: string
   updatedAt: string
 }
@@ -88,3 +97,13 @@ export interface DashboardStats {
   recentContacts: Contact[]
   upcomingTasks: Task[]
 }
+
+// Constantes para opciones de lead source
+export const LEAD_SOURCE_OPTIONS = [
+  { value: 'referido', label: 'Referido' },
+  { value: 'web', label: 'Sitio Web' },
+  { value: 'redes', label: 'Redes Sociales' },
+  { value: 'evento', label: 'Evento' },
+  { value: 'llamada_fria', label: 'Llamada en Frio' },
+  { value: 'otro', label: 'Otro' },
+] as const
