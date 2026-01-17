@@ -35,7 +35,7 @@ const cleanPhone = (phone: string) => phone.replace(/[^0-9+]/g, '')
 const formatPhoneForWhatsApp = (phone: string) => {
   const cleaned = phone.replace(/[^0-9]/g, '')
   if (cleaned.length >= 12) return cleaned
-  if (cleaned.length === 10) return '521' + cleaned
+  if (cleaned.length === 10) return '52' + cleaned
   return cleaned
 }
 
