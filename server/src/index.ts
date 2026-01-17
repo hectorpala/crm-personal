@@ -53,4 +53,5 @@ console.log('CRM Personal API running on port ' + port + ' (' + (isProduction ? 
 serve({
   fetch: app.fetch,
   port,
+  hostname: '0.0.0.0',
 })
