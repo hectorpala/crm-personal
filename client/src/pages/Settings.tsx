@@ -35,7 +35,7 @@ export default function Settings() {
   const { data: googleStatus, isLoading, refetch: refetchStatus } = useQuery<GoogleStatus>({
     queryKey: ['google-status'],
     queryFn: async () => {
-      const res = await fetch('http://localhost:3000/api/google-sheets/status')
+      const res = await fetch('/api/google-sheets/status')
       return res.json()
     },
   })
@@ -48,12 +48,12 @@ export default function Settings() {
 
   const handleConnect = async () => {
     try {
-      const res = await fetch('http://localhost:3000/api/google-sheets/auth-url')
+      const res = await fetch('/api/google-sheets/auth-url')
       const data = await res.json()
       if (data.authUrl) {
         window.open(data.authUrl, '_blank', 'width=500,height=600')
         const pollInterval = setInterval(async () => {
-          const statusRes = await fetch('http://localhost:3000/api/google-sheets/status')
+          const statusRes = await fetch('/api/google-sheets/status')
           const status = await statusRes.json()
           if (status.connected) {
             clearInterval(pollInterval)
@@ -77,7 +77,7 @@ export default function Settings() {
 
   const handleDisconnect = async () => {
     try {
-      await fetch('http://localhost:3000/api/google-sheets/disconnect', { method: 'DELETE' })
+      await fetch('/api/google-sheets/disconnect', { method: 'DELETE' })
       refetchStatus()
       setSyncResult(null)
       toast({
@@ -105,7 +105,7 @@ export default function Settings() {
     setIsSyncing(true)
     setSyncResult(null)
     try {
-      const res = await fetch('http://localhost:3000/api/google-sheets/sync', {
+      const res = await fetch('/api/google-sheets/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ spreadsheetId }),
