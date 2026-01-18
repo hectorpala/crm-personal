@@ -24,6 +24,10 @@ import {
   Calendar,
   Target,
   Clock,
+  Send,
+  MessageSquare,
+  PhoneCall,
+  Trash2,
 } from 'lucide-react'
 import type { Contact } from '@/types'
 import { LEAD_SOURCE_OPTIONS } from '@/types'
@@ -86,6 +90,55 @@ export default function ContactDetail() {
   const [editData, setEditData] = useState<Partial<Contact>>({})
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const { toast } = useToast()
+  const [newMessage, setNewMessage] = useState('')
+  const [messageType, setMessageType] = useState<'whatsapp' | 'llamada' | 'nota'>('whatsapp')
+
+  const { data: conversations = [], refetch: refetchConversations } = useQuery<any[]>({
+    queryKey: ['conversations', id],
+    queryFn: async () => {
+      const res = await fetch('/api/conversations/contact/' + id)
+      return res.json()
+    },
+  })
+
+  const sendMessageMutation = useMutation({
+    mutationFn: async (data: { content: string; type: string }) => {
+      const res = await fetch('/api/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contactId: parseInt(id!),
+          content: data.content,
+          type: data.type,
+          direction: 'saliente',
+          channel: data.type === 'whatsapp' ? 'whatsapp' : data.type === 'llamada' ? 'telefono' : 'manual',
+        }),
+      })
+      return res.json()
+    },
+    onSuccess: () => {
+      refetchConversations()
+      setNewMessage('')
+      if (messageType === 'whatsapp' && contact?.phone) {
+        const waUrl = 'https://wa.me/' + formatPhoneForWhatsApp(contact.phone) + '?text=' + encodeURIComponent(newMessage)
+        window.open(waUrl, '_blank')
+      }
+      toast({ title: 'Mensaje registrado' })
+    },
+  })
+
+  const deleteConversationMutation = useMutation({
+    mutationFn: async (convId: number) => {
+      await fetch('/api/conversations/' + convId, { method: 'DELETE' })
+    },
+    onSuccess: () => refetchConversations(),
+  })
+
+  const handleSendMessage = () => {
+    if (!newMessage.trim()) return
+    sendMessageMutation.mutate({ content: newMessage, type: messageType })
+  }
+
 
   const { data: contact, isLoading, error } = useQuery<Contact>({
     queryKey: ['contact', id],
@@ -279,7 +332,44 @@ export default function ContactDetail() {
           </div>
         </div>
         
-        {contact.createdAt && <p className="text-center text-ios-footnote text-[#6b7280] mt-8">{formatDate(contact.createdAt)}</p>}
+        
+        <p className="mx-4 mt-8 mb-2 text-ios-footnote text-[#6b7280] uppercase">Conversaciones</p>
+        <div className="mx-4 bg-white rounded-[10px] overflow-hidden">
+          <div className="p-3 border-b border-[rgba(60,60,67,0.29)]">
+            <div className="flex gap-2 mb-3">
+              <button onClick={() => setMessageType('whatsapp')} className={"flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors " + (messageType === 'whatsapp' ? 'bg-[#25D366] text-white' : 'bg-gray-100 text-gray-600')}><MessageCircle className="inline h-4 w-4 mr-1" />WhatsApp</button>
+              <button onClick={() => setMessageType('llamada')} className={"flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors " + (messageType === 'llamada' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600')}><PhoneCall className="inline h-4 w-4 mr-1" />Llamada</button>
+              <button onClick={() => setMessageType('nota')} className={"flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors " + (messageType === 'nota' ? 'bg-yellow-500 text-white' : 'bg-gray-100 text-gray-600')}><MessageSquare className="inline h-4 w-4 mr-1" />Nota</button>
+            </div>
+            <div className="flex gap-2">
+              <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} placeholder={messageType === 'whatsapp' ? 'Escribe un mensaje...' : messageType === 'llamada' ? 'Resumen de la llamada...' : 'Agregar nota...'} className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <button onClick={handleSendMessage} disabled={!newMessage.trim() || sendMessageMutation.isPending} className="px-4 py-2 bg-[#007aff] text-white rounded-lg disabled:opacity-50"><Send className="h-4 w-4" /></button>
+            </div>
+            {messageType === 'whatsapp' && <p className="text-xs text-gray-500 mt-2">Se abrira WhatsApp con el mensaje</p>}
+          </div>
+          <div className="max-h-[300px] overflow-y-auto">
+            {conversations.length === 0 ? (
+              <div className="p-4 text-center text-[#c7c7cc] text-sm">Sin conversaciones</div>
+            ) : (
+              conversations.map((conv: any) => (
+                <div key={conv.id} className="px-4 py-3 border-b border-[rgba(60,60,67,0.29)] last:border-0 group">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      {conv.type === 'whatsapp' && <MessageCircle className="h-4 w-4 text-[#25D366]" />}
+                      {conv.type === 'llamada' && <PhoneCall className="h-4 w-4 text-blue-500" />}
+                      {conv.type === 'nota' && <MessageSquare className="h-4 w-4 text-yellow-500" />}
+                      <span className="text-xs text-gray-500">{formatRelativeTime(conv.createdAt)}</span>
+                    </div>
+                    <button onClick={() => deleteConversationMutation.mutate(conv.id)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity"><Trash2 className="h-4 w-4" /></button>
+                  </div>
+                  <p className="text-sm mt-1">{conv.content}</p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+        
+{contact.createdAt && <p className="text-center text-ios-footnote text-[#6b7280] mt-8">{formatDate(contact.createdAt)}</p>}
       </div>
     </div>
   )
