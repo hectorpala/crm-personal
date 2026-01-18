@@ -8,6 +8,20 @@ import * as path from 'path'
 
 export const googleSheetsRoutes = new Hono()
 
+// Normalize phone number to Mexican WhatsApp format
+function normalizePhone(phone) {
+  if (!phone || phone === '-') return null
+  let cleaned = phone.replace(/[^0-9+]/g, '')
+  if (!cleaned) return null
+  const hasPlus = cleaned.startsWith('+')
+  if (hasPlus) cleaned = cleaned.substring(1)
+  if (cleaned.length === 10) return '+52' + cleaned
+  if (cleaned.length === 12 && cleaned.startsWith('52')) return '+' + cleaned
+  if (cleaned.length >= 11) return '+' + cleaned
+  return hasPlus ? '+' + cleaned : cleaned
+}
+
+
 // Use data directory for credentials in production
 const dataDir = process.env.DATABASE_PATH ? path.dirname(process.env.DATABASE_PATH) : '.'
 const credentialsPath = path.join(dataDir, 'credentials.json')
@@ -111,8 +125,7 @@ googleSheetsRoutes.post('/sync', async (c) => {
           .where(eq(contacts.googleSheetRowId, rowId))
           .get()
 
-        const contactPhone = (phone && phone !== '-') ? phone :
-                            (whatsapp && whatsapp !== '-') ? whatsapp : null
+        const contactPhone = normalizePhone(phone) || normalizePhone(whatsapp)
 
         if (existing) {
           await db.update(contacts)
