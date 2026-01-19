@@ -1,4 +1,4 @@
-name: Deploy to Fly.io
+name: Deploy to VPS
 
 on:
   push:
@@ -7,14 +7,52 @@ on:
 
 jobs:
   deploy:
-    name: Deploy app
+    name: Build and Deploy
     runs-on: ubuntu-latest
     concurrency: deploy-group
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-      - run: flyctl deploy --remote-only
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build client
+        run: cd client && pnpm build
+
+      - name: Build server
+        run: cd server && pnpm build
+
+      - name: Deploy files to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          source: "client/dist/*,server/dist/*"
+          target: "/root/crm/deploy-temp"
+          strip_components: 1
+
+      - name: Update server and restart PM2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          script: |
+            cp -r /root/crm/deploy-temp/dist/* /root/crm/server/dist/
+            cp -r /root/crm/deploy-temp/client/dist/* /root/crm/server/public/
+            rm -rf /root/crm/deploy-temp
+            cd /root/crm/server && pm2 restart ecosystem.config.cjs
+            echo "Deploy completed!"

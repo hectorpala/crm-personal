@@ -12,7 +12,7 @@ import { settingsRoutes } from './routes/settings'
 import { googleSheetsRoutes } from './routes/google-sheets'
 import { emailRoutes } from './routes/email'
 import { whatsappRoutes } from './routes/whatsapp'
-import { initWhatsAppClient, isLocalMode } from './services/whatsapp-web'
+import { initWhatsAppClient, isWhatsAppEnabled } from './services/whatsapp-web'
 
 const app = new Hono()
 
@@ -58,7 +58,7 @@ serve({
 })
 
 // Auto-initialize WhatsApp in local mode
-if (isLocalMode()) {
+if (isWhatsAppEnabled()) {
   console.log('Auto-initializing WhatsApp Web client...')
   initWhatsAppClient()
 }

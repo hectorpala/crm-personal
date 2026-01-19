@@ -53,3 +53,4 @@ client/vite.config.js
 # WhatsApp Web session data
 server/.wwebjs_auth/
 server/.wwebjs_cache/
+contraseñas server.txt

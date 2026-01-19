@@ -7,7 +7,7 @@ import {
   getWhatsAppStatus, 
   sendWhatsAppMessage, 
   disconnectWhatsApp,
-  isLocalMode 
+  isWhatsAppEnabled 
 } from '../services/whatsapp-web'
 
 export const whatsappRoutes = new Hono()
@@ -41,7 +41,7 @@ function formatPhoneForAPI(phone: string): string {
 
 // Initialize WhatsApp Web client (local mode only)
 whatsappRoutes.post('/init', async (c) => {
-  if (!isLocalMode()) {
+  if (!isWhatsAppEnabled()) {
     return c.json({ error: 'WhatsApp Web only available in local mode' }, 400)
   }
   
@@ -52,7 +52,7 @@ whatsappRoutes.post('/init', async (c) => {
 // Get WhatsApp status
 whatsappRoutes.get('/status', async (c) => {
   // Check if running in local mode with whatsapp-web.js
-  if (isLocalMode()) {
+  if (isWhatsAppEnabled()) {
     const status = getWhatsAppStatus()
     return c.json({
       mode: 'local',
@@ -117,7 +117,7 @@ whatsappRoutes.post('/send', async (c) => {
   }
 
   // Try local mode first
-  if (isLocalMode()) {
+  if (isWhatsAppEnabled()) {
     const status = getWhatsAppStatus()
     if (status.ready) {
       const result = await sendWhatsAppMessage(phone, message)
@@ -198,7 +198,7 @@ whatsappRoutes.post('/send', async (c) => {
 
 // Disconnect WhatsApp Web
 whatsappRoutes.post('/disconnect', async (c) => {
-  if (isLocalMode()) {
+  if (isWhatsAppEnabled()) {
     await disconnectWhatsApp()
     return c.json({ success: true })
   }

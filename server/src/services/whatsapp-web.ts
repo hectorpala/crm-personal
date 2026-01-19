@@ -211,6 +211,6 @@ export async function disconnectWhatsApp() {
 }
 
 // Check if running locally (not in production)
-export function isLocalMode() {
-  return process.env.NODE_ENV !== 'production'
+export function isWhatsAppEnabled() {
+  return process.env.NODE_ENV !== 'production' || process.env.ENABLE_WHATSAPP === 'true'
 }
