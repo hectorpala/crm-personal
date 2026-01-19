@@ -225,11 +225,11 @@ export default function Chats() {
           contactId,
         }),
       })
-      if (!res.ok) {
-        const data = await res.json()
+      const data = await res.json()
+      if (!res.ok || data.success === false) {
         throw new Error(data.error || 'Error al enviar')
       }
-      return res.json()
+      return data
     },
     onSuccess: () => {
       setNewMessage('')
