@@ -47,9 +47,7 @@ contactsRoutes.post('/', async (c) => {
     avatarUrl: body.avatarUrl,
     googleSheetRowId: body.googleSheetRowId,
     leadSource: body.leadSource,
-    leadScore: body.leadScore || 0,
-    potentialValue: body.potentialValue || 0,
-    nextFollowup: body.nextFollowup,
+    score: body.score || 0,
     notes: body.notes,
   }).returning()
   return c.json(result[0], 201)
@@ -70,9 +68,7 @@ contactsRoutes.put('/:id', async (c) => {
       tags: JSON.stringify(body.tags || []),
       avatarUrl: body.avatarUrl,
       leadSource: body.leadSource,
-      leadScore: body.leadScore,
-      potentialValue: body.potentialValue,
-      nextFollowup: body.nextFollowup,
+      score: body.score,
       notes: body.notes,
       updatedAt: new Date().toISOString(),
     })

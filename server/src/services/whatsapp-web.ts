@@ -156,7 +156,7 @@ export function initWhatsAppClient() {
           email: phone + "@whatsapp",
           phone: formattedPhone,
           category: "prospecto",
-          leadSource: "whatsapp" as const,
+          leadSource: "otro",
           tags: JSON.stringify(["WhatsApp", "Auto-creado"]),
           score: 0,
           createdAt: new Date().toISOString(),
@@ -191,13 +191,16 @@ export function initWhatsAppClient() {
   // Handle outgoing messages (sent from phone)
   client.on('message_create', async (message: any) => {
     try {
+      // Debug: log all message_create events
+      console.log('message_create event:', { fromMe: message.fromMe, from: message.from, to: message.to, body: message.body?.substring(0, 50) })
+
       // Only process messages sent by us
       if (!message.fromMe) return
-      
+
       // Skip status broadcasts
       if (message.to === 'status@broadcast') return
-      
-      console.log('Outgoing message to:', message.to, message.body)
+
+      console.log('Processing outgoing message to:', message.to, message.body)
 
       // Get the recipient phone number
       const phone = message.to.replace(/@c\.us$/, '').replace(/@lid$/, '')
@@ -207,6 +210,7 @@ export function initWhatsAppClient() {
 
       // Get all possible phone formats
       const phoneVariants = normalizeMexicanPhone(phone)
+      console.log('Searching phone variants:', phoneVariants)
       
       // Find contact by phone
       let contact = null
@@ -235,6 +239,8 @@ export function initWhatsAppClient() {
           .where(eq(contacts.id, contact.id))
 
         console.log('Outgoing message saved for contact:', contact.name)
+      } else {
+        console.log('No contact found for outgoing message to:', phone, 'variants:', phoneVariants)
       }
     } catch (error) {
       console.error('Error processing outgoing message:', error)
