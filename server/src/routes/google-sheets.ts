@@ -228,7 +228,7 @@ googleSheetsRoutes.delete('/disconnect', async (c) => {
 function getOAuth2Client() {
   const credPath = getCredentialsPath()
   const isProduction = process.env.NODE_ENV === 'production'
-  const baseUrl = isProduction ? 'http://crm-plomero.duckdns.org:3000' : 'http://localhost:3000'
+  const baseUrl = isProduction ? 'https://crm-personal.fly.dev' : 'http://localhost:3000'
   
   let credentials = {
     client_id: process.env.GOOGLE_CLIENT_ID || '',
