@@ -95,29 +95,46 @@ export function initWhatsAppClient() {
     client = null
   })
 
-  // Handle incoming messages
+  // Handle all messages (incoming and outgoing)
   client.on('message', async (message: any) => {
     try {
-      console.log('Incoming message from:', message.from, message.body)
+      const isOutgoing = message.fromMe
+      const direction = isOutgoing ? 'saliente' : 'entrante'
+      
+      // Debug: log all message events
+      console.log('message event:', { 
+        fromMe: message.fromMe, 
+        from: message.from, 
+        to: message.to, 
+        direction,
+        body: message.body?.substring(0, 50) 
+      })
+
+      // Skip status broadcasts
+      if (message.to === 'status@broadcast' || message.from === 'status@broadcast') {
+        console.log('Skipping status broadcast')
+        return
+      }
 
       // Get the contact info to extract the real phone number
       const waContact = await message.getContact()
       let phone = waContact?.number || ''
 
-      // If no number from contact, try to extract from message.from
+      // For outgoing messages, get phone from message.to; for incoming, from message.from
       if (!phone) {
-        phone = message.from.replace(/@c\.us$/, '').replace(/@lid$/, '')
+        const phoneSource = isOutgoing ? message.to : message.from
+        phone = phoneSource.replace(/@c\.us$/, '').replace(/@lid$/, '')
       }
 
-      // Skip if no valid phone number (e.g., group messages)
+      // Skip if no valid phone number or group messages
       if (!phone || phone.includes('@g.us')) {
-        console.log('Skipping non-contact message')
+        console.log('Skipping group or invalid message')
         return
       }
 
       // Get all possible phone formats to search
       const phoneVariants = normalizeMexicanPhone(phone)
-      console.log('Searching for phone variants:', phoneVariants)
+      console.log('Searching for phone variants:', phoneVariants, 'direction:', direction)
 
       // Find contact by any phone variant
       let contact = null
@@ -130,12 +147,12 @@ export function initWhatsAppClient() {
       }
 
       if (contact) {
-        // Log incoming message
+        // Log message
         await db.insert(conversations).values({
           contactId: contact.id,
           type: 'whatsapp',
           content: message.body,
-          direction: 'entrante',
+          direction: direction,
           channel: 'whatsapp',
           createdAt: new Date().toISOString(),
         })
@@ -145,9 +162,9 @@ export function initWhatsAppClient() {
           .set({ lastContactDate: new Date().toISOString() })
           .where(eq(contacts.id, contact.id))
 
-        console.log('Message saved for contact:', contact.name)
-      } else {
-        // Auto-create new contact from unknown number
+        console.log('Message saved for contact:', contact.name, 'direction:', direction)
+      } else if (!isOutgoing) {
+        // Auto-create new contact from unknown incoming number only
         const waName = waContact?.pushname || waContact?.name || null
         const formattedPhone = phoneVariants[0] // Use first variant (with +)
         
@@ -181,69 +198,11 @@ export function initWhatsAppClient() {
           
           console.log("New contact created from WhatsApp:", newContact[0].name, formattedPhone)
         }
-      }
-    } catch (error) {
-      console.error('Error processing incoming message:', error)
-    }
-  })
-
-
-  // Handle outgoing messages (sent from phone)
-  client.on('message_create', async (message: any) => {
-    try {
-      // Debug: log all message_create events
-      console.log('message_create event:', { fromMe: message.fromMe, from: message.from, to: message.to, body: message.body?.substring(0, 50) })
-
-      // Only process messages sent by us
-      if (!message.fromMe) return
-
-      // Skip status broadcasts
-      if (message.to === 'status@broadcast') return
-
-      console.log('Processing outgoing message to:', message.to, message.body)
-
-      // Get the recipient phone number
-      const phone = message.to.replace(/@c\.us$/, '').replace(/@lid$/, '')
-      
-      // Skip group messages
-      if (!phone || phone.includes('@g.us')) return
-
-      // Get all possible phone formats
-      const phoneVariants = normalizeMexicanPhone(phone)
-      console.log('Searching phone variants:', phoneVariants)
-      
-      // Find contact by phone
-      let contact = null
-      for (const variant of phoneVariants) {
-        contact = await db.select()
-          .from(contacts)
-          .where(eq(contacts.phone, variant))
-          .get()
-        if (contact) break
-      }
-
-      if (contact) {
-        // Log outgoing message
-        await db.insert(conversations).values({
-          contactId: contact.id,
-          type: 'whatsapp',
-          content: message.body,
-          direction: 'saliente',
-          channel: 'whatsapp',
-          createdAt: new Date().toISOString(),
-        })
-
-        // Update lastContactDate
-        await db.update(contacts)
-          .set({ lastContactDate: new Date().toISOString() })
-          .where(eq(contacts.id, contact.id))
-
-        console.log('Outgoing message saved for contact:', contact.name)
       } else {
-        console.log('No contact found for outgoing message to:', phone, 'variants:', phoneVariants)
+        console.log('No contact found for outgoing message to:', phone)
       }
     } catch (error) {
-      console.error('Error processing outgoing message:', error)
+      console.error('Error processing message:', error)
     }
   })
 
