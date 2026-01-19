@@ -14,7 +14,10 @@ import {
   Mail,
   MessageSquare,
   Loader2,
-  LogOut
+  LogOut,
+  
+  QrCode,
+  Smartphone
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { LoadingState } from '@/components/ui/loading-state'
@@ -25,10 +28,22 @@ interface GoogleStatus {
   spreadsheetId: string | null
 }
 
+interface WhatsAppStatus {
+  mode: 'local' | 'cloud'
+  configured: boolean
+  connected?: boolean
+  qrCode?: string
+  phoneNumber?: string
+  verifiedName?: string
+  error?: string
+  message?: string
+}
+
 export default function Settings() {
   const [spreadsheetId, setSpreadsheetId] = useState('')
   const [isSyncing, setIsSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<{ imported: number; updated: number } | null>(null)
+  const [isInitializing, setIsInitializing] = useState(false)
   const queryClient = useQueryClient()
   const { toast } = useToast()
 
@@ -40,11 +55,28 @@ export default function Settings() {
     },
   })
 
+  const { data: whatsappStatus, isLoading: isLoadingWA, refetch: refetchWA } = useQuery<WhatsAppStatus>({
+    queryKey: ['whatsapp-status'],
+    queryFn: async () => {
+      const res = await fetch('/api/whatsapp/status')
+      return res.json()
+    },
+    
+  })
+
   useEffect(() => {
     if (googleStatus?.spreadsheetId) {
       setSpreadsheetId(googleStatus.spreadsheetId)
     }
   }, [googleStatus?.spreadsheetId])
+
+  // Poll for status while QR is showing
+  useEffect(() => {
+    if (whatsappStatus?.qrCode && !whatsappStatus?.connected) {
+      const interval = setInterval(() => refetchWA(), 2000)
+      return () => clearInterval(interval)
+    }
+  }, [whatsappStatus?.qrCode, whatsappStatus?.connected, refetchWA])
 
   const handleConnect = async () => {
     try {
@@ -58,20 +90,13 @@ export default function Settings() {
           if (status.connected) {
             clearInterval(pollInterval)
             refetchStatus()
-            toast({
-              title: 'Cuenta conectada',
-              description: 'Tu cuenta de Google se ha conectado correctamente.',
-            })
+            toast({ title: 'Cuenta conectada' })
           }
         }, 2000)
         setTimeout(() => clearInterval(pollInterval), 120000)
       }
     } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Error de conexion',
-        description: 'No se pudo obtener la URL de autenticacion. Verifica tu conexion.',
-      })
+      toast({ variant: 'destructive', title: 'Error de conexion' })
     }
   }
 
@@ -80,26 +105,15 @@ export default function Settings() {
       await fetch('/api/google-sheets/disconnect', { method: 'DELETE' })
       refetchStatus()
       setSyncResult(null)
-      toast({
-        title: 'Cuenta desconectada',
-        description: 'Tu cuenta de Google se ha desconectado.',
-      })
+      toast({ title: 'Cuenta desconectada' })
     } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Error al desconectar',
-        description: 'No se pudo desconectar la cuenta de Google.',
-      })
+      toast({ variant: 'destructive', title: 'Error al desconectar' })
     }
   }
 
   const handleSync = async () => {
     if (!spreadsheetId) {
-      toast({
-        variant: 'destructive',
-        title: 'ID requerido',
-        description: 'Ingresa el ID del Spreadsheet para sincronizar.',
-      })
+      toast({ variant: 'destructive', title: 'ID requerido' })
       return
     }
     setIsSyncing(true)
@@ -112,27 +126,40 @@ export default function Settings() {
       })
       const data = await res.json()
       if (data.error) {
-        toast({
-          variant: 'destructive',
-          title: 'Error de sincronizacion',
-          description: data.error,
-        })
+        toast({ variant: 'destructive', title: 'Error', description: data.error })
       } else {
         setSyncResult({ imported: data.imported, updated: data.updated })
         queryClient.invalidateQueries({ queryKey: ['contacts'] })
-        toast({
-          title: 'Sincronizacion completada',
-          description: `${data.imported} nuevos contactos, ${data.updated} actualizados.`,
-        })
+        toast({ title: 'Sincronizacion completada' })
       }
     } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Error al sincronizar',
-        description: 'Ocurrio un error de conexion. Intenta de nuevo.',
-      })
+      toast({ variant: 'destructive', title: 'Error al sincronizar' })
     } finally {
       setIsSyncing(false)
+    }
+  }
+
+  const handleInitWhatsApp = async () => {
+    setIsInitializing(true)
+    try {
+      await fetch('/api/whatsapp/init', { method: 'POST' })
+      toast({ title: 'Inicializando WhatsApp...', description: 'Espera el codigo QR' })
+      // Start polling
+      setTimeout(() => refetchWA(), 2000)
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Error al inicializar' })
+    } finally {
+      setIsInitializing(false)
+    }
+  }
+
+  const handleDisconnectWhatsApp = async () => {
+    try {
+      await fetch('/api/whatsapp/disconnect', { method: 'POST' })
+      refetchWA()
+      toast({ title: 'WhatsApp desconectado' })
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Error al desconectar' })
     }
   }
 
@@ -150,12 +177,75 @@ export default function Settings() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-semibold">Configuracion</h2>
-        <p className="text-muted-foreground">
-          Configura las integraciones y preferencias del CRM
-        </p>
+        <p className="text-muted-foreground">Configura las integraciones del CRM</p>
       </div>
 
       <div className="grid gap-6">
+        {/* WhatsApp Web */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <MessageSquare className="h-6 w-6 text-green-500" />
+                <div>
+                  <CardTitle>WhatsApp</CardTitle>
+                  <CardDescription>Conecta tu WhatsApp para enviar mensajes desde el CRM</CardDescription>
+                </div>
+              </div>
+              {isLoadingWA ? (
+                <Badge variant="outline"><Loader2 className="mr-1 h-3 w-3 animate-spin" />Verificando...</Badge>
+              ) : whatsappStatus?.connected ? (
+                <Badge className="bg-green-100 text-green-800"><CheckCircle2 className="mr-1 h-3 w-3" />Conectado</Badge>
+              ) : whatsappStatus?.qrCode ? (
+                <Badge variant="outline" className="bg-blue-50 text-blue-700"><QrCode className="mr-1 h-3 w-3" />Escanea QR</Badge>
+              ) : (
+                <Badge variant="outline"><XCircle className="mr-1 h-3 w-3" />Desconectado</Badge>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {whatsappStatus?.connected ? (
+              <div className="p-4 bg-green-50 rounded-lg">
+                <div className="flex items-center gap-3 mb-2">
+                  <Smartphone className="h-8 w-8 text-green-600" />
+                  <div>
+                    <p className="font-medium text-green-800">+{whatsappStatus.phoneNumber}</p>
+                    {whatsappStatus.verifiedName && (
+                      <p className="text-sm text-green-600">{whatsappStatus.verifiedName}</p>
+                    )}
+                  </div>
+                </div>
+                <p className="text-xs text-green-600 mt-2">Los mensajes se enviaran directamente desde tu WhatsApp</p>
+                <Button variant="outline" size="sm" onClick={handleDisconnectWhatsApp} className="mt-3">
+                  <LogOut className="mr-2 h-4 w-4" />Desconectar
+                </Button>
+              </div>
+            ) : whatsappStatus?.qrCode ? (
+              <div className="flex flex-col items-center p-4 bg-white border rounded-lg">
+                <p className="text-sm text-gray-600 mb-3">Escanea con WhatsApp en tu telefono:</p>
+                <img src={whatsappStatus.qrCode} alt="QR Code" className="w-48 h-48" />
+                <p className="text-xs text-gray-500 mt-3">Abre WhatsApp &gt; Menu &gt; Dispositivos vinculados</p>
+              </div>
+            ) : (
+              <div className="p-4 bg-muted rounded-lg">
+                <p className="text-sm text-muted-foreground mb-3">
+                  Conecta tu WhatsApp para enviar y recibir mensajes directamente desde el CRM.
+                </p>
+                <Button onClick={handleInitWhatsApp} disabled={isInitializing}>
+                  {isInitializing ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Iniciando...</>
+                  ) : (
+                    <><QrCode className="mr-2 h-4 w-4" />Conectar WhatsApp</>
+                  )}
+                </Button>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Requiere correr el servidor localmente. Las conversaciones se guardan automaticamente.
+            </p>
+          </CardContent>
+        </Card>
+
         {/* Google Account */}
         <Card>
           <CardHeader>
@@ -164,61 +254,41 @@ export default function Settings() {
                 <Mail className="h-6 w-6 text-red-500" />
                 <div>
                   <CardTitle>Cuenta de Google</CardTitle>
-                  <CardDescription>
-                    Conecta tu cuenta para sincronizar Sheets y enviar emails
-                  </CardDescription>
+                  <CardDescription>Conecta para sincronizar Sheets y enviar emails</CardDescription>
                 </div>
               </div>
               {googleStatus?.connected ? (
-                <Badge className="bg-green-100 text-green-800">
-                  <CheckCircle2 className="mr-1 h-3 w-3" />
-                  Conectado
-                </Badge>
+                <Badge className="bg-green-100 text-green-800"><CheckCircle2 className="mr-1 h-3 w-3" />Conectado</Badge>
               ) : (
-                <Badge variant="outline">
-                  <XCircle className="mr-1 h-3 w-3" />
-                  Desconectado
-                </Badge>
+                <Badge variant="outline"><XCircle className="mr-1 h-3 w-3" />Desconectado</Badge>
               )}
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {googleStatus?.connected ? (
-              <>
-                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                  <div>
-                    <p className="font-medium">{googleStatus.email || 'Cuenta conectada'}</p>
-                    <p className="text-sm text-muted-foreground">Gmail y Google Sheets</p>
-                  </div>
-                  <Button variant="outline" size="sm" onClick={handleDisconnect}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Desconectar
-                  </Button>
+              <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                <div>
+                  <p className="font-medium">{googleStatus.email || 'Cuenta conectada'}</p>
+                  <p className="text-sm text-muted-foreground">Gmail y Google Sheets</p>
                 </div>
-              </>
+                <Button variant="outline" size="sm" onClick={handleDisconnect}>
+                  <LogOut className="mr-2 h-4 w-4" />Desconectar
+                </Button>
+              </div>
             ) : (
-              <Button onClick={handleConnect}>
-                Conectar con Google
-              </Button>
+              <Button onClick={handleConnect}>Conectar con Google</Button>
             )}
-            <p className="text-xs text-muted-foreground">
-              Se usara para sincronizar contactos desde Google Sheets y enviar emails desde Gmail
-            </p>
           </CardContent>
         </Card>
 
-        {/* Google Sheets Sync */}
+        {/* Google Sheets */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <FileSpreadsheet className="h-6 w-6 text-green-600" />
-                <div>
-                  <CardTitle>Google Sheets</CardTitle>
-                  <CardDescription>
-                    Sincroniza contactos desde tu hoja de calculo
-                  </CardDescription>
-                </div>
+            <div className="flex items-center gap-3">
+              <FileSpreadsheet className="h-6 w-6 text-green-600" />
+              <div>
+                <CardTitle>Google Sheets</CardTitle>
+                <CardDescription>Sincroniza contactos desde tu hoja de calculo</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -236,87 +306,20 @@ export default function Settings() {
                   <ExternalLink className="h-4 w-4" />
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Encuentra el ID en la URL de tu Google Sheet
-              </p>
             </div>
-            <div className="flex gap-2">
-              <Button
-                onClick={handleSync}
-                disabled={!googleStatus?.connected || isSyncing}
-              >
-                {isSyncing ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Sincronizando...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    Sincronizar Ahora
-                  </>
-                )}
-              </Button>
-            </div>
+            <Button onClick={handleSync} disabled={!googleStatus?.connected || isSyncing}>
+              {isSyncing ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Sincronizando...</>
+              ) : (
+                <><RefreshCw className="mr-2 h-4 w-4" />Sincronizar Ahora</>
+              )}
+            </Button>
             {syncResult && (
               <div className="p-3 bg-green-50 text-green-800 rounded-lg text-sm">
                 <CheckCircle2 className="inline mr-2 h-4 w-4" />
-                {syncResult.imported} nuevos contactos importados, {syncResult.updated} actualizados
+                {syncResult.imported} nuevos, {syncResult.updated} actualizados
               </div>
             )}
-            {!googleStatus?.connected && (
-              <p className="text-sm text-amber-600">
-                Conecta tu cuenta de Google primero para sincronizar
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* WhatsApp Info */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <MessageSquare className="h-6 w-6 text-green-500" />
-                <div>
-                  <CardTitle>WhatsApp</CardTitle>
-                  <CardDescription>
-                    Envia mensajes de WhatsApp a tus contactos
-                  </CardDescription>
-                </div>
-              </div>
-              <Badge className="bg-green-100 text-green-800">
-                <CheckCircle2 className="mr-1 h-3 w-3" />
-                Disponible
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Los mensajes de WhatsApp se envian generando links de wa.me que abren WhatsApp Web o la app directamente.
-              No requiere configuracion adicional.
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Sync Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Sincronizacion</CardTitle>
-            <CardDescription>
-              Los contactos se cargan de la base de datos al abrir la app
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Sincronizacion con Google Sheets</p>
-                <p className="text-sm text-muted-foreground">
-                  Solo se ejecuta al presionar el boton Sincronizar
-                </p>
-              </div>
-              <Badge variant="outline">Manual</Badge>
-            </div>
           </CardContent>
         </Card>
       </div>

@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../db'
 import { conversations, contacts } from '../db/schema'
-import { eq, desc } from 'drizzle-orm'
+import { eq, asc } from 'drizzle-orm'
 
 export const conversationsRoutes = new Hono()
 
@@ -11,7 +11,7 @@ conversationsRoutes.get('/contact/:contactId', async (c) => {
   const convs = await db.select()
     .from(conversations)
     .where(eq(conversations.contactId, contactId))
-    .orderBy(desc(conversations.createdAt))
+    .orderBy(asc(conversations.createdAt))
     .all()
   return c.json(convs)
 })
@@ -26,6 +26,7 @@ conversationsRoutes.post('/', async (c) => {
     content: body.content,
     direction: body.direction || 'saliente',
     channel: body.channel || 'manual',
+    createdAt: new Date().toISOString(),
   }).returning()
   
   // Update contact score (simple scoring: +5 per interaction)

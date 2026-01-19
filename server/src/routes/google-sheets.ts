@@ -9,7 +9,7 @@ import * as path from 'path'
 export const googleSheetsRoutes = new Hono()
 
 // Normalize phone number to Mexican WhatsApp format
-function normalizePhone(phone) {
+function normalizePhone(phone: string | null | undefined) {
   if (!phone || phone === '-') return null
   let cleaned = phone.replace(/[^0-9+]/g, '')
   if (!cleaned) return null

@@ -1,0 +1,60 @@
+  // Handle incoming messages
+  client.on('message', async (message: any) => {
+    try {
+      console.log('Incoming message from:', message.from, message.body)
+
+      // Get the contact info to extract the real phone number
+      const waContact = await message.getContact()
+      let phone = waContact?.number || ''
+      
+      // If no number from contact, try to extract from message.from
+      if (!phone) {
+        // Remove @c.us or @lid suffix
+        phone = message.from.replace(/@c\.us$/, '').replace(/@lid$/, '')
+      }
+      
+      // Skip if no valid phone number (e.g., group messages)
+      if (!phone || phone.includes('@g.us')) {
+        console.log('Skipping non-contact message')
+        return
+      }
+
+      const formattedPhone = '+' + phone
+
+      // Find contact by phone (try multiple formats)
+      let contact = await db.select()
+        .from(contacts)
+        .where(eq(contacts.phone, formattedPhone))
+        .get()
+      
+      // Also try without + prefix
+      if (!contact) {
+        contact = await db.select()
+          .from(contacts)
+          .where(eq(contacts.phone, phone))
+          .get()
+      }
+
+      if (contact) {
+        // Log incoming message
+        await db.insert(conversations).values({
+          contactId: contact.id,
+          type: 'whatsapp',
+          content: message.body,
+          direction: 'entrante',
+          channel: 'whatsapp',
+        })
+
+        // Update lastContactDate
+        await db.update(contacts)
+          .set({ lastContactDate: new Date().toISOString() })
+          .where(eq(contacts.id, contact.id))
+
+        console.log('Message saved for contact:', contact.name)
+      } else {
+        console.log('Contact not found for phone:', formattedPhone)
+      }
+    } catch (error) {
+      console.error('Error processing incoming message:', error)
+    }
+  })

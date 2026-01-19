@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -92,17 +92,43 @@ export default function ContactDetail() {
   const { toast } = useToast()
   const [newMessage, setNewMessage] = useState('')
   const [messageType, setMessageType] = useState<'whatsapp' | 'llamada' | 'nota'>('whatsapp')
+  const chatContainerRef = useRef<HTMLDivElement>(null)
 
   const { data: conversations = [], refetch: refetchConversations } = useQuery<any[]>({
-    queryKey: ['conversations', id],
+    queryKey: ["conversations", id],
+    refetchInterval: 5000,
     queryFn: async () => {
       const res = await fetch('/api/conversations/contact/' + id)
       return res.json()
     },
   })
 
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+    }
+  }, [conversations])
+
   const sendMessageMutation = useMutation({
     mutationFn: async (data: { content: string; type: string }) => {
+      // If WhatsApp message, try to send via API first
+      if (data.type === 'whatsapp' && contact?.phone) {
+        const waRes = await fetch('/api/whatsapp/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contactId: id,
+            phone: contact.phone,
+            message: data.content,
+          }),
+        })
+        const waResult = await waRes.json()
+        if (waResult.success) {
+          return { ...waResult, sentViaAPI: true }
+        }
+        // WhatsApp failed - return the error
+        return { sentViaAPI: false, waError: waResult.error || 'WhatsApp no disponible' }
+      }
       const res = await fetch('/api/conversations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -116,14 +142,16 @@ export default function ContactDetail() {
       })
       return res.json()
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       refetchConversations()
       setNewMessage('')
-      if (messageType === 'whatsapp' && contact?.phone) {
-        const waUrl = 'https://wa.me/' + formatPhoneForWhatsApp(contact.phone) + '?text=' + encodeURIComponent(newMessage)
-        window.open(waUrl, '_blank')
+      if (result.sentViaAPI) {
+        toast({ title: 'Mensaje enviado', description: 'Enviado por WhatsApp' })
+      } else if (result.waError) {
+        toast({ variant: 'destructive', title: 'WhatsApp fallo', description: 'Usa el boton de WhatsApp para enviar manualmente' })
+      } else {
+        toast({ title: 'Mensaje guardado' })
       }
-      toast({ title: 'Mensaje registrado' })
     },
   })
 
@@ -345,24 +373,25 @@ export default function ContactDetail() {
               <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} placeholder={messageType === 'whatsapp' ? 'Escribe un mensaje...' : messageType === 'llamada' ? 'Resumen de la llamada...' : 'Agregar nota...'} className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               <button onClick={handleSendMessage} disabled={!newMessage.trim() || sendMessageMutation.isPending} className="px-4 py-2 bg-[#007aff] text-white rounded-lg disabled:opacity-50"><Send className="h-4 w-4" /></button>
             </div>
-            {messageType === 'whatsapp' && <p className="text-xs text-gray-500 mt-2">Se abrira WhatsApp con el mensaje</p>}
+            {messageType === 'whatsapp' && <p className="text-xs text-gray-500 mt-2">Si WhatsApp falla, usa el boton de arriba</p>}
           </div>
-          <div className="max-h-[300px] overflow-y-auto">
+          <div ref={chatContainerRef} className="max-h-[300px] overflow-y-auto">
             {conversations.length === 0 ? (
               <div className="p-4 text-center text-[#c7c7cc] text-sm">Sin conversaciones</div>
             ) : (
               conversations.map((conv: any) => (
-                <div key={conv.id} className="px-4 py-3 border-b border-[rgba(60,60,67,0.29)] last:border-0 group">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                      {conv.type === 'whatsapp' && <MessageCircle className="h-4 w-4 text-[#25D366]" />}
-                      {conv.type === 'llamada' && <PhoneCall className="h-4 w-4 text-blue-500" />}
-                      {conv.type === 'nota' && <MessageSquare className="h-4 w-4 text-yellow-500" />}
-                      <span className="text-xs text-gray-500">{formatRelativeTime(conv.createdAt)}</span>
+                <div key={conv.id} className={"px-4 py-2 flex " + (conv.direction === "entrante" ? "justify-start" : "justify-end")}>
+                  <div className={"max-w-[80%] rounded-lg px-3 py-2 group " + (conv.direction === "entrante" ? "bg-gray-100" : "bg-[#DCF8C6]")}>
+                    <div className="flex items-center gap-2 mb-1">
+                      {conv.type === "whatsapp" && <MessageCircle className="h-3 w-3 text-[#25D366]" />}
+                      {conv.type === "llamada" && <PhoneCall className="h-3 w-3 text-blue-500" />}
+                      {conv.type === "nota" && <MessageSquare className="h-3 w-3 text-yellow-500" />}
+                      <span className="text-[10px] text-gray-500">{conv.direction === "entrante" ? "Recibido" : "Enviado"}</span>
+                      <span className="text-[10px] text-gray-400">{formatRelativeTime(conv.createdAt)}</span>
+                      <button onClick={() => deleteConversationMutation.mutate(conv.id)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity ml-auto"><Trash2 className="h-3 w-3" /></button>
                     </div>
-                    <button onClick={() => deleteConversationMutation.mutate(conv.id)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity"><Trash2 className="h-4 w-4" /></button>
+                    <p className="text-sm">{conv.content}</p>
                   </div>
-                  <p className="text-sm mt-1">{conv.content}</p>
                 </div>
               ))
             )}
