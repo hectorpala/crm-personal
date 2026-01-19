@@ -352,7 +352,49 @@ export function initWhatsAppClient() {
 
         console.log('Outgoing message saved for contact:', contact.name, 'media:', mediaData?.mediaType || 'none')
       } else {
-        console.log('No contact found for outgoing message to:', phone, 'variants:', phoneVariants)
+        // Auto-create contact for outgoing message to unknown number
+        const waContact = await message.getContact()
+        const waName = waContact?.name || waContact?.pushname || null
+        const formattedPhone = phoneVariants[0]
+        const contactName = waName || "Nuevo - " + phone
+
+        const newContact = await db.insert(contacts).values({
+          name: contactName,
+          email: phone + "@whatsapp",
+          phone: formattedPhone,
+          category: "prospecto",
+          leadSource: "otro",
+          tags: JSON.stringify(["WhatsApp", "Auto-creado"]),
+          score: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }).returning()
+
+        if (newContact[0]) {
+          await db.insert(conversations).values({
+            contactId: newContact[0].id,
+            type: "whatsapp",
+            content: content,
+            direction: "saliente",
+            channel: "whatsapp",
+            mediaType: mediaData?.mediaType || null,
+            mediaUrl: mediaData?.mediaUrl || null,
+            createdAt: new Date().toISOString(),
+          })
+
+          await db.insert(opportunities).values({
+            contactId: newContact[0].id,
+            title: "WhatsApp - " + contactName,
+            value: 0,
+            probability: 50,
+            stage: "Lead",
+            notes: "Oportunidad creada automaticamente desde WhatsApp (saliente)",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          })
+
+          console.log("New contact created from outgoing WhatsApp:", contactName, formattedPhone)
+        }
       }
     } catch (error) {
       console.error('Error processing outgoing message:', error)
