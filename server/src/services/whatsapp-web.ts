@@ -206,6 +206,63 @@ export function initWhatsAppClient() {
     }
   })
 
+
+  // Handle outgoing messages sent from phone (message_create captures ALL messages)
+  client.on('message_create', async (message: any) => {
+    try {
+      // Only process messages sent by us (outgoing)
+      if (!message.fromMe) return
+      
+      // Skip status broadcasts
+      if (message.to === 'status@broadcast') return
+      
+      console.log('message_create (outgoing):', { to: message.to, body: message.body?.substring(0, 50) })
+
+      // Get the recipient phone number
+      const phone = message.to.replace(/@c\.us$/, '').replace(/@lid$/, '')
+      
+      // Skip group messages
+      if (!phone || phone.includes('@g.us')) return
+
+      // Get all possible phone formats
+      const phoneVariants = normalizeMexicanPhone(phone)
+      console.log('Searching outgoing phone variants:', phoneVariants)
+      
+      // Find contact by phone
+      let contact = null
+      for (const variant of phoneVariants) {
+        contact = await db.select()
+          .from(contacts)
+          .where(eq(contacts.phone, variant))
+          .get()
+        if (contact) break
+      }
+
+      if (contact) {
+        // Log outgoing message
+        await db.insert(conversations).values({
+          contactId: contact.id,
+          type: 'whatsapp',
+          content: message.body,
+          direction: 'saliente',
+          channel: 'whatsapp',
+          createdAt: new Date().toISOString(),
+        })
+
+        // Update lastContactDate
+        await db.update(contacts)
+          .set({ lastContactDate: new Date().toISOString() })
+          .where(eq(contacts.id, contact.id))
+
+        console.log('Outgoing message saved for contact:', contact.name)
+      } else {
+        console.log('No contact found for outgoing message to:', phone, 'variants:', phoneVariants)
+      }
+    } catch (error) {
+      console.error('Error processing outgoing message:', error)
+    }
+  })
+
   client.initialize()
 }
 
