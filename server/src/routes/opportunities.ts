@@ -7,14 +7,19 @@ export const opportunitiesRoutes = new Hono()
 
 // Get all opportunities with contact info
 opportunitiesRoutes.get('/', async (c) => {
-  const allOpps = await db.select().from(opportunities).all()
-  const result = await Promise.all(allOpps.map(async (opp) => {
-    const contact = opp.contactId 
-      ? await db.select().from(contacts).where(eq(contacts.id, opp.contactId)).get()
-      : null
-    return { ...opp, contact }
-  }))
-  return c.json(result)
+  try {
+    const allOpps = await db.select().from(opportunities).all()
+    const result = await Promise.all(allOpps.map(async (opp) => {
+      const contact = opp.contactId 
+        ? await db.select().from(contacts).where(eq(contacts.id, opp.contactId)).get()
+        : null
+      return { ...opp, contact }
+    }))
+    return c.json(result)
+  } catch (error: any) {
+    console.error('Error fetching opportunities:', error)
+    return c.json({ error: error.message, stack: error.stack }, 500)
+  }
 })
 
 // Get pipeline stages
