@@ -305,13 +305,35 @@ export default function Chats() {
     }
   }
 
+  // Normalize Mexican phone for comparison (handles 521 vs 52 variants)
+  const normalizePhone = (phone: string): string[] => {
+    const clean = phone.replace(/[^0-9]/g, '')
+    if (!clean || clean.length < 10) return []
+    const variants = [clean]
+    // Mexican 521 -> 52 variant
+    if (clean.startsWith('521') && clean.length === 13) {
+      variants.push('52' + clean.substring(3))
+    }
+    // Mexican 52 -> 521 variant
+    if (clean.startsWith('52') && !clean.startsWith('521') && clean.length === 12) {
+      variants.push('521' + clean.substring(2))
+    }
+    // Last 10 digits for local format
+    if (clean.length >= 10) {
+      variants.push(clean.slice(-10))
+    }
+    return variants
+  }
+
   const handleSelectWaChat = async (waChat: WhatsAppChat) => {
     setSelectedWaChat(waChat)
     // Check if contact exists in CRM
+    const waVariants = normalizePhone(waChat.phone)
     const existingChat = chatList.find(c => {
-      const crmPhone = c.contact?.phone?.replace(/[^0-9]/g, '')
-      const waPhone = waChat.phone.replace(/[^0-9]/g, '')
-      return crmPhone?.includes(waPhone) || waPhone.includes(crmPhone || '')
+      if (!c.contact?.phone) return false
+      const crmVariants = normalizePhone(c.contact.phone)
+      // Check if any variant matches
+      return waVariants.some(wv => crmVariants.includes(wv))
     })
     if (existingChat) {
       setSelectedContactId(existingChat.contact.id)
