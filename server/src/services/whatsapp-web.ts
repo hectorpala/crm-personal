@@ -4,6 +4,16 @@ import QRCode from 'qrcode'
 import { db } from '../db'
 import { conversations, contacts } from '../db/schema'
 import { eq, or, like } from 'drizzle-orm'
+import { platform } from 'os'
+
+// Get Chrome/Chromium path based on OS
+function getChromePath(): string {
+  if (platform() === 'darwin') {
+    return '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+  }
+  // Linux - try common paths
+  return '/usr/bin/chromium-browser'
+}
 
 // WhatsApp Web client state
 let client: typeof Client.prototype | null = null
@@ -15,25 +25,25 @@ let clientInfo: any = null
 function normalizeMexicanPhone(phone: string): string[] {
   const variants: string[] = []
   const clean = phone.replace(/[^0-9]/g, '')
-  
+
   // Original format with +
   variants.push('+' + clean)
   variants.push(clean)
-  
+
   // If starts with 521, also try 52 (Mexican mobile format)
   if (clean.startsWith('521') && clean.length === 13) {
     const without1 = '52' + clean.substring(3)
     variants.push('+' + without1)
     variants.push(without1)
   }
-  
+
   // If starts with 52 (without 1), also try 521
   if (clean.startsWith('52') && !clean.startsWith('521') && clean.length === 12) {
     const with1 = '521' + clean.substring(2)
     variants.push('+' + with1)
     variants.push(with1)
   }
-  
+
   return variants
 }
 
@@ -52,7 +62,7 @@ export function initWhatsAppClient() {
     }),
     puppeteer: {
       headless: true,
-      executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      executablePath: getChromePath(),
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage']
     }
   })
@@ -93,12 +103,12 @@ export function initWhatsAppClient() {
       // Get the contact info to extract the real phone number
       const waContact = await message.getContact()
       let phone = waContact?.number || ''
-      
+
       // If no number from contact, try to extract from message.from
       if (!phone) {
         phone = message.from.replace(/@c\.us$/, '').replace(/@lid$/, '')
       }
-      
+
       // Skip if no valid phone number (e.g., group messages)
       if (!phone || phone.includes('@g.us')) {
         console.log('Skipping non-contact message')
