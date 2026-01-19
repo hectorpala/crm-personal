@@ -61,6 +61,7 @@ export const tasks = sqliteTable('tasks', {
   dueDate: text('due_date').notNull(),
   completed: integer('completed', { mode: 'boolean' }).default(false),
   priority: text('priority', { enum: ['baja', 'media', 'alta'] }).default('media'),
+  googleCalendarEventId: text('google_calendar_event_id'),
   createdAt: text('created_at').default('CURRENT_TIMESTAMP'),
 })
 

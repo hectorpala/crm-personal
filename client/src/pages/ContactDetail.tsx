@@ -26,6 +26,7 @@ import {
   MessageSquare,
   PhoneCall,
   Trash2,
+  Calendar,
 } from 'lucide-react'
 import type { Contact } from '@/types'
 import { LEAD_SOURCE_OPTIONS } from '@/types'
@@ -80,6 +81,8 @@ export default function ContactDetail() {
   const [newMessage, setNewMessage] = useState('')
   const [messageType, setMessageType] = useState<'whatsapp' | 'llamada' | 'nota'>('whatsapp')
   const chatContainerRef = useRef<HTMLDivElement>(null)
+  const [showScheduleModal, setShowScheduleModal] = useState(false)
+  const [scheduleData, setScheduleData] = useState({ title: 'Trabajo de plomeria', date: '', time: '09:00', value: '', notes: '' })
 
   const { data: conversations = [], refetch: refetchConversations } = useQuery<any[]>({
     queryKey: ["conversations", id],
@@ -196,8 +199,27 @@ export default function ContactDetail() {
       toast({ title: 'Contacto eliminado', description: 'El contacto ha sido eliminado.' })
       navigate('/contacts')
     },
+  })
+
+  const scheduleJobMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await fetch('/api/google-calendar/schedule-job', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactId: parseInt(id!), ...data }),
+      })
+      if (!res.ok) throw new Error('Error al agendar')
+      return res.json()
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['contact', id] })
+      setShowScheduleModal(false)
+      setScheduleData({ title: 'Trabajo de plomeria', date: '', time: '09:00', value: '', notes: '' })
+      toast({ title: 'Trabajo agendado', description: 'Se creo el evento en Google Calendar' })
+      if (result.calendarLink) window.open(result.calendarLink, '_blank')
+    },
     onError: (error) => {
-      toast({ variant: 'destructive', title: 'Error al eliminar', description: error instanceof Error ? error.message : 'Ocurrio un error' })
+      toast({ variant: 'destructive', title: 'Error', description: error instanceof Error ? error.message : 'No se pudo agendar' })
     },
   })
 
@@ -302,6 +324,7 @@ export default function ContactDetail() {
             <button aria-label="WhatsApp" onClick={() => window.open('https://wa.me/' + formatPhoneForWhatsApp(contact.phone!), '_blank')} className="flex flex-col items-center justify-center min-w-[68px] w-[68px] sm:w-[76px] h-[56px] sm:h-[60px] bg-white rounded-[10px] active:bg-[#e5e5ea] transition-colors"><MessageCircle className="h-[26px] w-[26px] text-[#34c759] stroke-[1.5]" /><span className="text-ios-tabbar text-[#007aff] mt-1">WhatsApp</span></button>
             <button aria-label="Llamar" onClick={() => window.location.href = 'tel:' + cleanPhone(contact.phone!)} className="flex flex-col items-center justify-center min-w-[68px] w-[68px] sm:w-[76px] h-[56px] sm:h-[60px] bg-white rounded-[10px] active:bg-[#e5e5ea] transition-colors"><Phone className="h-[26px] w-[26px] text-[#34c759] stroke-[1.5]" /><span className="text-ios-tabbar text-[#007aff] mt-1">Llamar</span></button>
             <button aria-label="Video" className="flex flex-col items-center justify-center min-w-[68px] w-[68px] sm:w-[76px] h-[56px] sm:h-[60px] bg-white rounded-[10px] active:bg-[#e5e5ea] transition-colors"><Video className="h-[26px] w-[26px] text-[#34c759] stroke-[1.5]" /><span className="text-ios-tabbar text-[#007aff] mt-1">Video</span></button>
+            <button aria-label="Agendar" onClick={() => setShowScheduleModal(true)} className="flex flex-col items-center justify-center min-w-[68px] w-[68px] sm:w-[76px] h-[56px] sm:h-[60px] bg-white rounded-[10px] active:bg-[#e5e5ea] transition-colors"><Calendar className="h-[26px] w-[26px] text-[#ff9500] stroke-[1.5]" /><span className="text-ios-tabbar text-[#007aff] mt-1">Agendar</span></button>
           </>)}
           {hasValidEmail && (<button aria-label="Mail" onClick={() => window.location.href = 'mailto:' + contact.email} className="flex flex-col items-center justify-center min-w-[68px] w-[68px] sm:w-[76px] h-[56px] sm:h-[60px] bg-white rounded-[10px] active:bg-[#e5e5ea] transition-colors"><Mail className="h-[26px] w-[26px] text-[#34c759] stroke-[1.5]" /><span className="text-ios-tabbar text-[#007aff] mt-1">Mail</span></button>)}
         </div>
@@ -372,6 +395,44 @@ export default function ContactDetail() {
           </div>
         </div>
         
+        {showScheduleModal && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-[14px] w-full max-w-sm overflow-hidden">
+              <div className="p-4 border-b border-[rgba(60,60,67,0.29)]">
+                <h3 className="text-ios-headline text-center">Agendar Trabajo</h3>
+              </div>
+              <div className="p-4 space-y-4">
+                <div>
+                  <label className="text-ios-footnote text-[#6b7280] block mb-1">Titulo</label>
+                  <input type="text" value={scheduleData.title} onChange={(e) => setScheduleData({...scheduleData, title: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-ios-body" />
+                </div>
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <label className="text-ios-footnote text-[#6b7280] block mb-1">Fecha</label>
+                    <input type="date" value={scheduleData.date} onChange={(e) => setScheduleData({...scheduleData, date: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-ios-body" />
+                  </div>
+                  <div className="w-24">
+                    <label className="text-ios-footnote text-[#6b7280] block mb-1">Hora</label>
+                    <input type="time" value={scheduleData.time} onChange={(e) => setScheduleData({...scheduleData, time: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-ios-body" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-ios-footnote text-[#6b7280] block mb-1">Valor $</label>
+                  <input type="number" value={scheduleData.value} onChange={(e) => setScheduleData({...scheduleData, value: e.target.value})} placeholder="0" className="w-full px-3 py-2 border rounded-lg text-ios-body" />
+                </div>
+                <div>
+                  <label className="text-ios-footnote text-[#6b7280] block mb-1">Notas</label>
+                  <textarea value={scheduleData.notes} onChange={(e) => setScheduleData({...scheduleData, notes: e.target.value})} rows={2} className="w-full px-3 py-2 border rounded-lg text-ios-body resize-none" />
+                </div>
+              </div>
+              <div className="flex border-t border-[rgba(60,60,67,0.29)]">
+                <button onClick={() => setShowScheduleModal(false)} className="flex-1 py-3 text-[#007aff] text-ios-body border-r border-[rgba(60,60,67,0.29)]">Cancelar</button>
+                <button onClick={() => scheduleJobMutation.mutate(scheduleData)} disabled={!scheduleData.date || scheduleJobMutation.isPending} className="flex-1 py-3 text-[#007aff] text-ios-headline disabled:opacity-40">{scheduleJobMutation.isPending ? "Agendando..." : "Agendar"}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
 {contact.createdAt && <p className="text-center text-ios-footnote text-[#6b7280] mt-8">{formatDate(contact.createdAt)}</p>}
       </div>
     </div>

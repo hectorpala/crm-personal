@@ -12,6 +12,7 @@ import { settingsRoutes } from './routes/settings'
 import { googleSheetsRoutes } from './routes/google-sheets'
 import { emailRoutes } from './routes/email'
 import { whatsappRoutes } from './routes/whatsapp'
+import { googleCalendarRoutes } from './routes/google-calendar'
 import { initWhatsAppClient, isWhatsAppEnabled } from './services/whatsapp-web'
 
 const app = new Hono()
@@ -41,6 +42,7 @@ app.route('/api/settings', settingsRoutes)
 app.route('/api/google-sheets', googleSheetsRoutes)
 app.route('/api/email', emailRoutes)
 app.route('/api/whatsapp', whatsappRoutes)
+app.route('/api/google-calendar', googleCalendarRoutes)
 
 // Serve static files in production
 if (isProduction) {
