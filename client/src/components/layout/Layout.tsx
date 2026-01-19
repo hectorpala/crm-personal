@@ -11,6 +11,7 @@ import {
   Search,
   Menu,
   X,
+  MessageCircle,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -19,6 +20,7 @@ import { Breadcrumb, BreadcrumbItem } from '@/components/ui/breadcrumb'
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Contactos', href: '/contacts', icon: Users },
+  { name: 'Chats', href: '/chats', icon: MessageCircle },
   { name: 'Pipeline', href: '/pipeline', icon: Kanban },
   { name: 'Tareas', href: '/tasks', icon: CheckSquare },
   { name: 'Mensajeria', href: '/messaging', icon: Mail },
@@ -28,6 +30,7 @@ const navigation = [
 const routeNames: Record<string, string> = {
   '/': 'Dashboard',
   '/contacts': 'Contactos',
+  '/chats': 'Chats',
   '/pipeline': 'Pipeline',
   '/tasks': 'Tareas',
   '/messaging': 'Mensajeria',
@@ -136,7 +139,8 @@ export default function Layout({ children }: LayoutProps) {
                 'group relative flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-all',
                 isActive
                   ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                item.name === 'Chats' && 'text-green-600'
               )}
             >
               {/* Active indicator - left border */}
@@ -150,7 +154,8 @@ export default function Layout({ children }: LayoutProps) {
               />
               <item.icon className={cn(
                 'h-5 w-5 transition-colors',
-                isActive ? 'text-primary' : ''
+                isActive ? 'text-primary' : '',
+                item.name === 'Chats' && 'text-green-600'
               )} />
               <span>{item.name}</span>
               {/* Active dot indicator */}

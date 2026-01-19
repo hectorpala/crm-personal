@@ -2,7 +2,7 @@ import pkg from 'whatsapp-web.js'
 const { Client, LocalAuth } = pkg
 import QRCode from 'qrcode'
 import { db } from '../db'
-import { conversations, contacts } from '../db/schema'
+import { conversations, contacts, opportunities } from '../db/schema'
 import { eq, or, like } from 'drizzle-orm'
 import { platform } from 'os'
 
@@ -165,11 +165,12 @@ export function initWhatsAppClient() {
         console.log('Message saved for contact:', contact.name, 'direction:', direction)
       } else if (!isOutgoing) {
         // Auto-create new contact from unknown incoming number only
-        const waName = waContact?.pushname || waContact?.name || null
+        const waName = waContact?.name || waContact?.pushname || null
         const formattedPhone = phoneVariants[0] // Use first variant (with +)
-        
+        const contactName = waName || "Nuevo - " + phone
+
         const newContact = await db.insert(contacts).values({
-          name: waName || "Nuevo - " + phone,
+          name: contactName,
           email: phone + "@whatsapp",
           phone: formattedPhone,
           category: "prospecto",
@@ -179,7 +180,7 @@ export function initWhatsAppClient() {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         }).returning()
-        
+
         if (newContact[0]) {
           // Save the message to the new contact
           await db.insert(conversations).values({
@@ -190,13 +191,25 @@ export function initWhatsAppClient() {
             channel: "whatsapp",
             createdAt: new Date().toISOString(),
           })
-          
+
           // Update lastContactDate
           await db.update(contacts)
             .set({ lastContactDate: new Date().toISOString() })
             .where(eq(contacts.id, newContact[0].id))
-          
-          console.log("New contact created from WhatsApp:", newContact[0].name, formattedPhone)
+
+          // Create opportunity in pipeline for new WhatsApp contact
+          await db.insert(opportunities).values({
+            contactId: newContact[0].id,
+            title: "WhatsApp - " + contactName,
+            value: 0,
+            probability: 50,
+            stage: "Lead",
+            notes: "Oportunidad creada automaticamente desde WhatsApp",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          })
+
+          console.log("New contact and opportunity created from WhatsApp:", contactName, formattedPhone)
         }
       } else {
         console.log('No contact found for outgoing message to:', phone)
@@ -322,4 +335,32 @@ export async function disconnectWhatsApp() {
 // Check if running locally (not in production)
 export function isWhatsAppEnabled() {
   return process.env.NODE_ENV !== 'production' || process.env.ENABLE_WHATSAPP === 'true'
+}
+
+// Get all WhatsApp chats
+export async function getAllWhatsAppChats(): Promise<any[]> {
+  if (!client || !isReady) {
+    return []
+  }
+
+  try {
+    const chats = await client.getChats()
+    // Filter out groups and status broadcasts, return individual chats
+    const individualChats = chats
+      .filter((chat: any) => !chat.isGroup && chat.id._serialized !== 'status@broadcast')
+      .map((chat: any) => ({
+        id: chat.id._serialized,
+        phone: chat.id.user,
+        name: chat.name || chat.id.user,
+        lastMessage: chat.lastMessage?.body || '',
+        lastMessageTime: chat.lastMessage?.timestamp ? new Date(chat.lastMessage.timestamp * 1000).toISOString() : null,
+        unreadCount: chat.unreadCount || 0,
+      }))
+      .slice(0, 100) // Limit to 100 chats
+
+    return individualChats
+  } catch (error) {
+    console.error('Error getting WhatsApp chats:', error)
+    return []
+  }
 }

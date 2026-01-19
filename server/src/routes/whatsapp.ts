@@ -7,7 +7,8 @@ import {
   getWhatsAppStatus, 
   sendWhatsAppMessage, 
   disconnectWhatsApp,
-  isWhatsAppEnabled 
+  isWhatsAppEnabled,
+  getAllWhatsAppChats 
 } from '../services/whatsapp-web'
 
 export const whatsappRoutes = new Hono()
@@ -76,8 +77,8 @@ whatsappRoutes.get('/status', async (c) => {
 
   try {
     const response = await fetch(
-      `${WHATSAPP_API_URL}/${WHATSAPP_PHONE_NUMBER_ID}`,
-      { headers: { 'Authorization': `Bearer ${WHATSAPP_ACCESS_TOKEN}` } }
+      WHATSAPP_API_URL + '/' + WHATSAPP_PHONE_NUMBER_ID,
+      { headers: { 'Authorization': 'Bearer ' + WHATSAPP_ACCESS_TOKEN } }
     )
     const result = await response.json()
 
@@ -152,11 +153,11 @@ whatsappRoutes.post('/send', async (c) => {
 
   try {
     const response = await fetch(
-      `${WHATSAPP_API_URL}/${WHATSAPP_PHONE_NUMBER_ID}/messages`,
+      WHATSAPP_API_URL + '/' + WHATSAPP_PHONE_NUMBER_ID + '/messages',
       {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
+          'Authorization': 'Bearer ' + WHATSAPP_ACCESS_TOKEN,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -298,4 +299,14 @@ whatsappRoutes.post('/webhook', async (c) => {
   }
 
   return c.json({ success: true })
+})
+
+// Get all WhatsApp chats
+whatsappRoutes.get('/chats', async (c) => {
+  if (!isWhatsAppEnabled()) {
+    return c.json({ error: 'WhatsApp Web only available in local mode' }, 400)
+  }
+  
+  const chats = await getAllWhatsAppChats()
+  return c.json(chats)
 })

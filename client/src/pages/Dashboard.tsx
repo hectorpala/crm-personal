@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Users, Target, CheckSquare, DollarSign, Calendar, User, Bell } from 'lucide-react'
+import { Users, Target, CheckSquare, DollarSign, Calendar, Bell, MessageCircle } from 'lucide-react'
 import { useStore } from '@/store'
 import { contactsAPI, opportunitiesAPI, tasksAPI } from '@/lib/api'
 import type { Contact, Opportunity, Task } from '@/types'
@@ -9,7 +9,6 @@ import { Link } from 'react-router-dom'
 import { useToast } from '@/hooks/use-toast'
 import { LoadingState } from '@/components/ui/loading-state'
 import { ErrorState } from '@/components/ui/error-state'
-import { getCategoryColor } from '@/lib/category-styles'
 
 export default function Dashboard() {
   const {
@@ -17,23 +16,26 @@ export default function Dashboard() {
     opportunities, setOpportunities,
     tasks, setTasks
   } = useStore()
-  
+
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
+  const [recentConversationContacts, setRecentConversationContacts] = useState<any[]>([])
 
   const loadData = async () => {
     setIsLoading(true)
     setError(null)
     try {
-      const [contactsData, opportunitiesData, tasksData] = await Promise.all([
+      const [contactsData, opportunitiesData, tasksData, recentRes] = await Promise.all([
         contactsAPI.getAll() as Promise<Contact[]>,
         opportunitiesAPI.getAll() as Promise<Opportunity[]>,
         tasksAPI.getAll() as Promise<Task[]>,
+        fetch('/api/conversations/recent?limit=10').then(r => r.json()),
       ])
       setContacts(contactsData)
       setOpportunities(opportunitiesData)
       setTasks(tasksData)
+      setRecentConversationContacts(recentRes)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al cargar datos del dashboard'
       setError(message)
@@ -90,12 +92,6 @@ export default function Dashboard() {
     ]
   }, [contacts, opportunities, tasks])
 
-  const recentContacts = useMemo(() => {
-    return [...contacts]
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, 5)
-  }, [contacts])
-
   const upcomingTasks = useMemo(() => {
     return [...tasks]
       .filter(t => !t.completed)
@@ -121,6 +117,17 @@ export default function Dashboard() {
     if (date.toDateString() === today.toDateString()) return 'Hoy'
     if (date.toDateString() === tomorrow.toDateString()) return 'Manana'
 
+    return date.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
+  }
+
+  const formatDateTime = (dateStr: string) => {
+    const date = new Date(dateStr)
+    const today = new Date()
+    const isToday = date.toDateString() === today.toDateString()
+
+    if (isToday) {
+      return date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+    }
     return date.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
   }
 
@@ -174,46 +181,51 @@ export default function Dashboard() {
         ))}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Contactos Recientes
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {recentContacts.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No hay contactos aun
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {recentContacts.map((contact) => (
-                  <Link key={contact.id} to={'/contacts/' + contact.id}>
-                    <div className="flex items-center justify-between p-2 rounded-lg hover:bg-accent/50 cursor-pointer transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                          <span className="text-sm font-medium text-primary">
-                            {contact.name.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">{contact.name}</p>
-                          <p className="text-xs text-muted-foreground">{contact.company || contact.email}</p>
-                        </div>
-                      </div>
-                      <Badge className={getCategoryColor(contact.category)}>
-                        {contact.category}
-                      </Badge>
+      {/* Contactos con Conversaciones Recientes - Grid de 10 columnas */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageCircle className="h-5 w-5 text-green-600" />
+            Conversaciones Recientes
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {recentConversationContacts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No hay conversaciones recientes
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-10 gap-3">
+              {recentConversationContacts.map((item) => (
+                <Link key={item.id} to={item.contact ? '/contacts/' + item.contact.id : '/contacts'}>
+                  <div className="flex flex-col items-center p-3 rounded-lg hover:bg-accent/50 cursor-pointer transition-colors text-center">
+                    <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mb-2">
+                      {item.contact?.name ? (
+                        <span className="text-lg font-medium text-green-700">
+                          {item.contact.name.charAt(0).toUpperCase()}
+                        </span>
+                      ) : (
+                        <MessageCircle className="h-5 w-5 text-green-600" />
+                      )}
                     </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                    <p className="text-xs font-medium truncate w-full">
+                      {item.contact?.name || 'Desconocido'}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {formatDateTime(item.createdAt)}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground truncate w-full mt-1">
+                      {item.content?.substring(0, 20)}...
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
+      <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

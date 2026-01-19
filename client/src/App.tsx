@@ -7,6 +7,7 @@ import ContactDetail from '@/pages/ContactDetail'
 import Pipeline from '@/pages/Pipeline'
 import Tasks from '@/pages/Tasks'
 import Messaging from '@/pages/Messaging'
+import Chats from '@/pages/Chats'
 import Settings from '@/pages/Settings'
 import Privacy from '@/pages/Privacy'
 
@@ -23,6 +24,7 @@ function App() {
               <Route path="/contacts/:id" element={<ContactDetail />} />
               <Route path="/pipeline" element={<Pipeline />} />
               <Route path="/tasks" element={<Tasks />} />
+              <Route path="/chats" element={<Chats />} />
               <Route path="/messaging" element={<Messaging />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
