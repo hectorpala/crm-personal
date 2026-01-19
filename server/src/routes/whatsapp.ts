@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { db } from '../db'
-import { conversations, contacts } from '../db/schema'
+import { conversations, contacts, opportunities } from '../db/schema'
 import { eq } from 'drizzle-orm'
 import { 
   initWhatsAppClient, 
@@ -38,6 +38,29 @@ function formatPhoneForAPI(phone: string): string {
     cleaned = '52' + cleaned
   }
   return cleaned
+}
+
+// Normalize phone variants for search
+function getPhoneVariants(phone: string): string[] {
+  const variants: string[] = []
+  const clean = phone.replace(/[^0-9]/g, '')
+  
+  variants.push('+' + clean)
+  variants.push(clean)
+  
+  if (clean.startsWith('521') && clean.length === 13) {
+    const without1 = '52' + clean.substring(3)
+    variants.push('+' + without1)
+    variants.push(without1)
+  }
+  
+  if (clean.startsWith('52') && !clean.startsWith('521') && clean.length === 12) {
+    const with1 = '521' + clean.substring(2)
+    variants.push('+' + with1)
+    variants.push(with1)
+  }
+  
+  return variants
 }
 
 // Initialize WhatsApp Web client (local mode only)
@@ -161,9 +184,63 @@ whatsappRoutes.post('/send', async (c) => {
       return c.json({ error: result.error?.message || 'Failed to send' }, response.status)
     }
 
-    if (contactId) {
+    // Find or create contact for Cloud API mode
+    let finalContactId = contactId ? parseInt(contactId) : null
+
+    if (!finalContactId) {
+      // Search for existing contact by phone variants
+      const phoneVariants = getPhoneVariants(formattedPhone)
+      let existingContact = null
+      
+      for (const variant of phoneVariants) {
+        existingContact = await db.select()
+          .from(contacts)
+          .where(eq(contacts.phone, variant))
+          .get()
+        if (existingContact) break
+      }
+
+      if (existingContact) {
+        finalContactId = existingContact.id
+      } else {
+        // Auto-create contact
+        const contactName = "Nuevo - " + formattedPhone
+        const newContact = await db.insert(contacts).values({
+          name: contactName,
+          email: formattedPhone + "@whatsapp",
+          phone: '+' + formattedPhone,
+          category: "prospecto",
+          leadSource: "otro",
+          tags: JSON.stringify(["WhatsApp", "Auto-creado", "Cloud API"]),
+          score: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }).returning()
+
+        if (newContact[0]) {
+          finalContactId = newContact[0].id
+
+          // Create opportunity
+          await db.insert(opportunities).values({
+            contactId: newContact[0].id,
+            title: "WhatsApp - " + contactName,
+            value: 0,
+            probability: 50,
+            stage: "Lead",
+            notes: "Oportunidad creada automaticamente desde WhatsApp Cloud API",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          })
+
+          console.log("New contact created from Cloud API:", contactName)
+        }
+      }
+    }
+
+    // Save conversation
+    if (finalContactId) {
       await db.insert(conversations).values({
-        contactId: parseInt(contactId),
+        contactId: finalContactId,
         type: 'whatsapp',
         content: message,
         direction: 'saliente',
@@ -173,10 +250,10 @@ whatsappRoutes.post('/send', async (c) => {
       
       await db.update(contacts)
         .set({ lastContactDate: new Date().toISOString() })
-        .where(eq(contacts.id, parseInt(contactId)))
+        .where(eq(contacts.id, finalContactId))
     }
 
-    return c.json({ success: true, messageId: result.messages?.[0]?.id })
+    return c.json({ success: true, messageId: result.messages?.[0]?.id, contactId: finalContactId })
   } catch (error: any) {
     return c.json({ error: error.message }, 500)
   }
@@ -254,14 +331,21 @@ whatsappRoutes.post('/webhook', async (c) => {
     for (const entry of body.entry || []) {
       for (const change of entry.changes || []) {
         if (change.field === 'messages') {
-          for (const message of change.value.messages || []) {
-            const from = message.from
-            const text = message.text?.body || ''
+          for (const msg of change.value.messages || []) {
+            const from = msg.from
+            const text = msg.text?.body || ''
 
-            const contact = await db.select()
-              .from(contacts)
-              .where(eq(contacts.phone, '+' + from))
-              .get()
+            // Search for existing contact by phone variants
+            const phoneVariants = getPhoneVariants(from)
+            let contact = null
+            
+            for (const variant of phoneVariants) {
+              contact = await db.select()
+                .from(contacts)
+                .where(eq(contacts.phone, variant))
+                .get()
+              if (contact) break
+            }
 
             if (contact) {
               await db.insert(conversations).values({
@@ -276,6 +360,44 @@ whatsappRoutes.post('/webhook', async (c) => {
               await db.update(contacts)
                 .set({ lastContactDate: new Date().toISOString() })
                 .where(eq(contacts.id, contact.id))
+            } else {
+              // Auto-create contact for incoming webhook message
+              const contactName = "Nuevo - " + from
+              const newContact = await db.insert(contacts).values({
+                name: contactName,
+                email: from + "@whatsapp",
+                phone: '+' + from,
+                category: "prospecto",
+                leadSource: "otro",
+                tags: JSON.stringify(["WhatsApp", "Auto-creado", "Cloud API"]),
+                score: 0,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              }).returning()
+
+              if (newContact[0]) {
+                await db.insert(conversations).values({
+                  contactId: newContact[0].id,
+                  type: 'whatsapp',
+                  content: text,
+                  direction: 'entrante',
+                  channel: 'whatsapp',
+                  createdAt: new Date().toISOString(),
+                })
+
+                await db.insert(opportunities).values({
+                  contactId: newContact[0].id,
+                  title: "WhatsApp - " + contactName,
+                  value: 0,
+                  probability: 50,
+                  stage: "Lead",
+                  notes: "Oportunidad creada automaticamente desde WhatsApp Cloud API (entrante)",
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                })
+
+                console.log("New contact created from Cloud API webhook:", contactName)
+              }
             }
           }
         }
