@@ -21,7 +21,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Plus, Search, RefreshCw, Mail, Phone, Loader2, MessageCircle, MapPin, AlertCircle, Send, X, CheckSquare, DollarSign, TrendingUp, Calendar } from 'lucide-react'
+import { Plus, Search, RefreshCw, Mail, Phone, Loader2, MessageCircle, MapPin, AlertCircle, Send, X, CheckSquare } from 'lucide-react'
 import type { Contact } from '@/types'
 import { LEAD_SOURCE_OPTIONS } from '@/types'
 import { useToast } from '@/hooks/use-toast'
@@ -60,9 +60,6 @@ export default function Contacts() {
     address: '',
     category: 'prospecto',
     leadSource: '',
-    leadScore: 0,
-    potentialValue: 0,
-    nextFollowup: '',
   })
   const [formErrors, setFormErrors] = useState<FormErrors>({})
   const [touched, setTouched] = useState<Record<string, boolean>>({})
@@ -104,7 +101,7 @@ export default function Contacts() {
   })
 
   const resetForm = () => {
-    setNewContact({ name: '', email: '', phone: '', company: '', address: '', category: 'prospecto', leadSource: '', leadScore: 0, potentialValue: 0, nextFollowup: '' })
+    setNewContact({ name: '', email: '', phone: '', company: '', address: '', category: 'prospecto', leadSource: '' })
     setFormErrors({})
     setTouched({})
   }
@@ -186,9 +183,6 @@ export default function Contacts() {
     return company.length > 30 ? company.substring(0, 30) + '...' : company
   }
 
-  const getLeadScoreColor = (score: number) => score >= 80 ? 'bg-green-100 text-green-800' : score >= 50 ? 'bg-yellow-100 text-yellow-800' : score >= 20 ? 'bg-orange-100 text-orange-800' : 'bg-gray-100 text-gray-800'
-  const formatCurrency = (value: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value)
-
   if (isLoading) return <LoadingState message="Cargando contactos..." />
 
   return (
@@ -207,7 +201,6 @@ export default function Contacts() {
               <DialogHeader><DialogTitle>Nuevo Contacto</DialogTitle></DialogHeader>
               <form onSubmit={handleCreateContact} className="space-y-4" noValidate>
                 <div className="space-y-4">
-                  <h3 className="text-sm font-medium text-muted-foreground">Informacion basica</h3>
                   <div className="space-y-2">
                     <Label htmlFor="name">Nombre <span className="text-destructive">*</span></Label>
                     <Input id="name" value={newContact.name} onChange={(e) => handleFieldChange('name', e.target.value)} onBlur={() => handleFieldBlur('name')} placeholder="Juan Perez" className={formErrors.name && touched.name ? 'border-destructive' : ''} />
@@ -222,17 +215,9 @@ export default function Contacts() {
                     <div className="space-y-2"><Label htmlFor="company">Empresa</Label><Input id="company" value={newContact.company} onChange={(e) => handleFieldChange('company', e.target.value)} placeholder="Empresa SA" /></div>
                     <div className="space-y-2"><Label htmlFor="category">Categoria</Label><Select value={newContact.category} onValueChange={(v) => handleFieldChange('category', v)}><SelectTrigger id="category"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="prospecto">Prospecto</SelectItem><SelectItem value="cliente">Cliente</SelectItem><SelectItem value="proveedor">Proveedor</SelectItem><SelectItem value="personal">Personal</SelectItem></SelectContent></Select></div>
                   </div>
-                  <div className="space-y-2"><Label htmlFor="address">Ubicacion</Label><Textarea id="address" value={newContact.address} onChange={(e) => handleFieldChange('address', e.target.value)} placeholder="Direccion completa" rows={2} /></div>
-                </div>
-                <div className="space-y-4 pt-4 border-t">
-                  <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2"><TrendingUp className="h-4 w-4" />Gestion Comercial</h3>
                   <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2"><Label htmlFor="address">Ubicacion</Label><Input id="address" value={newContact.address} onChange={(e) => handleFieldChange('address', e.target.value)} placeholder="Ciudad, Estado" /></div>
                     <div className="space-y-2"><Label htmlFor="leadSource">Fuente de origen</Label><Select value={newContact.leadSource} onValueChange={(v) => handleFieldChange('leadSource', v)}><SelectTrigger id="leadSource"><SelectValue placeholder="Seleccionar..." /></SelectTrigger><SelectContent>{LEAD_SOURCE_OPTIONS.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent></Select></div>
-                    <div className="space-y-2"><Label htmlFor="leadScore">Lead Score (0-100)</Label><div className="flex items-center gap-2"><Input id="leadScore" type="number" min={0} max={100} value={newContact.leadScore} onChange={(e) => handleFieldChange('leadScore', Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))} className="w-20" /><div className="flex-1 h-2 bg-muted rounded-full overflow-hidden"><div className={'h-full transition-all ' + (newContact.leadScore >= 80 ? 'bg-green-500' : newContact.leadScore >= 50 ? 'bg-yellow-500' : newContact.leadScore >= 20 ? 'bg-orange-500' : 'bg-gray-400')} style={{ width: newContact.leadScore + '%' }} /></div></div></div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2"><Label htmlFor="potentialValue" className="flex items-center gap-1"><DollarSign className="h-3.5 w-3.5" />Valor potencial</Label><Input id="potentialValue" type="number" min={0} value={newContact.potentialValue} onChange={(e) => handleFieldChange('potentialValue', parseFloat(e.target.value) || 0)} placeholder="0.00" /></div>
-                    <div className="space-y-2"><Label htmlFor="nextFollowup" className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />Proximo seguimiento</Label><Input id="nextFollowup" type="datetime-local" value={newContact.nextFollowup} onChange={(e) => handleFieldChange('nextFollowup', e.target.value)} /></div>
                   </div>
                 </div>
                 <div className="flex gap-2 pt-4"><Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} className="flex-1">Cancelar</Button><Button type="submit" disabled={createMutation.isPending} className="flex-1">{createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Guardar'}</Button></div>
@@ -257,7 +242,7 @@ export default function Contacts() {
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between gap-2">
                       <div className={'flex-1 min-w-0 ' + (selectionMode ? 'ml-8' : '')}><CardTitle className="text-base truncate">{contact.name}</CardTitle>{getDisplayCompany(contact.company) && <p className="text-sm text-muted-foreground truncate">{getDisplayCompany(contact.company)}</p>}</div>
-                      <div className="flex flex-col items-end gap-1"><Badge className={'shrink-0 ' + getCategoryColor(contact.category)}>{contact.category}</Badge>{contact.leadScore !== undefined && contact.leadScore > 0 && <Badge className={'text-xs ' + getLeadScoreColor(contact.leadScore)}>{contact.leadScore}%</Badge>}</div>
+                      <Badge className={'shrink-0 ' + getCategoryColor(contact.category)}>{contact.category}</Badge>
                     </div>
                   </CardHeader>
                   <CardContent className="flex-1 flex flex-col">
@@ -265,7 +250,6 @@ export default function Contacts() {
                       {contact.phone && <div className="flex items-center gap-2 text-muted-foreground"><Phone className="h-3 w-3 shrink-0" /><span className="truncate">{contact.phone}</span></div>}
                       {!contact.email.includes('@phone') && !contact.email.includes('@whatsapp') && <div className="flex items-center gap-2 text-muted-foreground"><Mail className="h-3 w-3 shrink-0" /><span className="truncate">{contact.email}</span></div>}
                       {contact.tags && contact.tags[1] && <div className="flex items-center gap-2 text-muted-foreground"><MapPin className="h-3 w-3 shrink-0" /><span className="truncate">{contact.tags[1]}</span></div>}
-                      {contact.potentialValue !== undefined && contact.potentialValue > 0 && <div className="flex items-center gap-2 text-green-600"><DollarSign className="h-3 w-3 shrink-0" /><span className="truncate font-medium">{formatCurrency(contact.potentialValue)}</span></div>}
                     </div>
                     {contact.tags && contact.tags.length > 0 && <div className="mt-3 flex flex-wrap gap-1">{contact.tags.slice(0, 1).map(tag => <Badge key={tag} variant="secondary" className="text-xs truncate max-w-[150px]">{tag}</Badge>)}</div>}
                     {!selectionMode && <div className="mt-4 pt-3 border-t flex gap-2">{contact.phone && <><Button variant="outline" size="sm" className="flex-1 h-8" onClick={(e) => handleWhatsApp(e, contact.phone!)}><MessageCircle className="h-4 w-4 mr-1 text-green-600" /><span className="text-xs">WhatsApp</span></Button><Button variant="outline" size="sm" className="flex-1 h-8" onClick={(e) => handleCall(e, contact.phone!)}><Phone className="h-4 w-4 mr-1 text-blue-600" /><span className="text-xs">Llamar</span></Button></>}{!contact.email.includes('@phone') && !contact.email.includes('@whatsapp') && <Button variant="outline" size="sm" className="flex-1 h-8" onClick={(e) => handleEmail(e, contact.email)}><Mail className="h-4 w-4 mr-1 text-orange-600" /><span className="text-xs">Email</span></Button>}</div>}

@@ -102,13 +102,14 @@ export default function Dashboard() {
       .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
       .slice(0, 5)
   }, [tasks])
+
   const upcomingFollowups = useMemo(() => {
     const now = new Date()
-    return [...contacts]
-      .filter(c => c.nextFollowup && new Date(c.nextFollowup) >= now)
+    return [...opportunities]
+      .filter(o => o.nextFollowup && new Date(o.nextFollowup) >= now)
       .sort((a, b) => new Date(a.nextFollowup!).getTime() - new Date(b.nextFollowup!).getTime())
       .slice(0, 5)
-  }, [contacts])
+  }, [opportunities])
 
 
   const formatDate = (dateStr: string) => {
@@ -118,7 +119,7 @@ export default function Dashboard() {
     tomorrow.setDate(tomorrow.getDate() + 1)
 
     if (date.toDateString() === today.toDateString()) return 'Hoy'
-    if (date.toDateString() === tomorrow.toDateString()) return 'Mañana'
+    if (date.toDateString() === tomorrow.toDateString()) return 'Manana'
 
     return date.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
   }
@@ -129,6 +130,10 @@ export default function Dashboard() {
       case 'media': return 'default'
       default: return 'secondary'
     }
+  }
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 }).format(value)
   }
 
 
@@ -153,14 +158,13 @@ export default function Dashboard() {
         <p className="text-muted-foreground">Resumen de tu CRM personal</p>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
           <Link key={stat.name} to={stat.href}>
             <Card className="cursor-pointer hover:bg-accent/50 transition-colors">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">{stat.name}</CardTitle>
-                <stat.icon className={`h-4 w-4 ${stat.color}`} />
+                <stat.icon className={'h-4 w-4 ' + stat.color} />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{stat.value}</div>
@@ -170,7 +174,6 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Recent Contacts, Upcoming Tasks & Followups */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader>
@@ -187,7 +190,7 @@ export default function Dashboard() {
             ) : (
               <div className="space-y-3">
                 {recentContacts.map((contact) => (
-                  <Link key={contact.id} to={`/contacts/${contact.id}`}>
+                  <Link key={contact.id} to={'/contacts/' + contact.id}>
                     <div className="flex items-center justify-between p-2 rounded-lg hover:bg-accent/50 cursor-pointer transition-colors">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
@@ -232,7 +235,7 @@ export default function Dashboard() {
                         <p className="text-sm font-medium truncate">{task.title}</p>
                         <p className="text-xs text-muted-foreground">
                           {formatDate(task.dueDate)}
-                          {task.contact && ` - ${task.contact.name}`}
+                          {task.contact && ' - ' + task.contact.name}
                         </p>
                       </div>
                       <Badge variant={getPriorityColor(task.priority) as any}>
@@ -260,23 +263,24 @@ export default function Dashboard() {
               </p>
             ) : (
               <div className="space-y-3">
-                {upcomingFollowups.map((contact) => (
-                  <Link key={contact.id} to={`/contacts/${contact.id}`}>
+                {upcomingFollowups.map((opportunity) => (
+                  <Link key={opportunity.id} to="/pipeline">
                     <div className="flex items-center justify-between p-2 rounded-lg hover:bg-accent/50 cursor-pointer transition-colors">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center">
                           <Bell className="h-4 w-4 text-orange-600" />
                         </div>
                         <div>
-                          <p className="text-sm font-medium">{contact.name}</p>
+                          <p className="text-sm font-medium">{opportunity.title}</p>
                           <p className="text-xs text-muted-foreground">
-                            {formatDate(contact.nextFollowup!)}
+                            {formatDate(opportunity.nextFollowup!)}
+                            {opportunity.contact && ' - ' + opportunity.contact.name}
                           </p>
                         </div>
                       </div>
-                      {contact.potentialValue && contact.potentialValue > 0 && (
+                      {opportunity.value > 0 && (
                         <span className="text-xs font-medium text-green-600">
-                          ${new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 }).format(contact.potentialValue)}
+                          {'$' + formatCurrency(opportunity.value)}
                         </span>
                       )}
                     </div>

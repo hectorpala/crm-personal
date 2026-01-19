@@ -14,10 +14,7 @@ export interface Contact {
   score: number
   // Campos de gestion comercial
   leadSource?: LeadSource
-  leadScore?: number
-  potentialValue?: number
   lastContactDate?: string
-  nextFollowup?: string
   notes?: string
   createdAt: string
   updatedAt: string
@@ -32,6 +29,7 @@ export interface Opportunity {
   probability: number
   stage: string
   expectedCloseDate?: string
+  nextFollowup?: string
   notes?: string
   createdAt: string
   updatedAt: string

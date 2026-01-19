@@ -20,8 +20,6 @@ import {
   Mail,
   Copy,
   Check,
-  DollarSign,
-  Calendar,
   Target,
   Clock,
   Send,
@@ -51,13 +49,6 @@ const formatDate = (dateString: string) => {
   return date.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-const formatDateTime = (dateString: string) => {
-  if (!dateString) return ''
-  const date = new Date(dateString)
-  if (isNaN(date.getTime())) return ''
-  return date.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-}
-
 const formatRelativeTime = (dateString: string) => {
   if (!dateString) return ''
   const date = new Date(dateString)
@@ -75,10 +66,6 @@ const formatRelativeTime = (dateString: string) => {
   if (diffDays < 7) return 'Hace ' + diffDays + ' dias'
   return date.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
 }
-
-const formatCurrency = (value: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value)
-
-const getLeadScoreColor = (score: number) => score >= 80 ? 'bg-green-500' : score >= 50 ? 'bg-yellow-500' : score >= 20 ? 'bg-orange-500' : 'bg-gray-400'
 
 const getLeadSourceLabel = (value: string) => LEAD_SOURCE_OPTIONS.find(opt => opt.value === value)?.label || value
 
@@ -224,9 +211,6 @@ export default function ContactDetail() {
         address: contact.address,
         category: contact.category,
         leadSource: contact.leadSource,
-        leadScore: contact.leadScore,
-        potentialValue: contact.potentialValue,
-        nextFollowup: contact.nextFollowup,
         notes: contact.notes,
       })
       setIsEditing(true)
@@ -279,14 +263,9 @@ export default function ContactDetail() {
           <div className="mx-4 mt-8 bg-white rounded-[10px] overflow-hidden"><div className="px-4 py-3"><label htmlFor="edit-address" className="text-ios-body text-[#6b7280] block">Ubicacion</label><textarea id="edit-address" value={editData.address || ''} onChange={(e) => setEditData({ ...editData, address: e.target.value })} className="w-full text-ios-body bg-transparent outline-none resize-none mt-1 placeholder:text-[#c7c7cc]" placeholder="Agregar" rows={2} /></div></div>
           <div className="mx-4 mt-8 bg-white rounded-[10px] overflow-hidden"><div className="flex items-center justify-between px-4 min-h-[44px]"><label htmlFor="edit-category" className="text-ios-body">Categoria</label><select id="edit-category" value={editData.category || 'prospecto'} onChange={(e) => setEditData({ ...editData, category: e.target.value as Contact['category'] })} className="text-ios-body text-[#6b7280] bg-transparent outline-none text-right appearance-none"><option value="prospecto">Prospecto</option><option value="cliente">Cliente</option><option value="proveedor">Proveedor</option><option value="personal">Personal</option></select></div></div>
           
-          <p className="mx-4 mt-8 mb-2 text-ios-footnote text-[#6b7280] uppercase">Gestion Comercial</p>
+          <p className="mx-4 mt-8 mb-2 text-ios-footnote text-[#6b7280] uppercase">Origen</p>
           <div className="mx-4 bg-white rounded-[10px] overflow-hidden">
-            <div className="divide-y divide-[rgba(60,60,67,0.29)]">
-              <div className="flex items-center justify-between px-4 min-h-[44px]"><label htmlFor="edit-source" className="text-ios-body">Fuente</label><select id="edit-source" value={editData.leadSource || ''} onChange={(e) => setEditData({ ...editData, leadSource: e.target.value as any })} className="text-ios-body text-[#6b7280] bg-transparent outline-none text-right appearance-none"><option value="">Sin especificar</option>{LEAD_SOURCE_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}</select></div>
-              <div className="flex items-center px-4 min-h-[44px]"><label htmlFor="edit-score" className="text-ios-body text-[#6b7280] flex-1">Lead Score</label><input id="edit-score" type="number" min={0} max={100} value={editData.leadScore || 0} onChange={(e) => setEditData({ ...editData, leadScore: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) })} className="w-16 text-ios-body text-right bg-transparent outline-none" /></div>
-              <div className="flex items-center px-4 min-h-[44px]"><label htmlFor="edit-value" className="text-ios-body text-[#6b7280] flex-1">Valor potencial</label><span className="text-ios-body text-[#6b7280] mr-1">$</span><input id="edit-value" type="number" min={0} value={editData.potentialValue || 0} onChange={(e) => setEditData({ ...editData, potentialValue: parseFloat(e.target.value) || 0 })} className="w-24 text-ios-body text-right bg-transparent outline-none" /></div>
-              <div className="flex items-center px-4 min-h-[44px]"><label htmlFor="edit-followup" className="text-ios-body text-[#6b7280] flex-1">Seguimiento</label><input id="edit-followup" type="datetime-local" value={editData.nextFollowup || ''} onChange={(e) => setEditData({ ...editData, nextFollowup: e.target.value })} className="text-ios-body text-[#007aff] bg-transparent outline-none" /></div>
-            </div>
+            <div className="flex items-center justify-between px-4 min-h-[44px]"><label htmlFor="edit-source" className="text-ios-body">Fuente</label><select id="edit-source" value={editData.leadSource || ''} onChange={(e) => setEditData({ ...editData, leadSource: e.target.value as any })} className="text-ios-body text-[#6b7280] bg-transparent outline-none text-right appearance-none"><option value="">Sin especificar</option>{LEAD_SOURCE_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}</select></div>
           </div>
           
           <div className="mx-4 mt-8 bg-white rounded-[10px] overflow-hidden"><div className="px-4 py-3"><label htmlFor="edit-notes" className="text-ios-body text-[#6b7280] block">Notas</label><textarea id="edit-notes" value={editData.notes || ''} onChange={(e) => setEditData({ ...editData, notes: e.target.value })} className="w-full text-ios-body bg-transparent outline-none resize-none mt-1 placeholder:text-[#c7c7cc]" placeholder="Agregar notas..." rows={3} /></div></div>
@@ -317,12 +296,6 @@ export default function ContactDetail() {
           <h1 className="text-ios-title1 font-semibold text-black text-center">{contact.name}</h1>
           {contact.company && <p className="text-ios-body text-[#6b7280] mt-0.5">{contact.company}</p>}
           <p className="text-ios-footnote text-[#6b7280] mt-0.5 capitalize">{contact.category}</p>
-          {contact.leadScore !== undefined && contact.leadScore > 0 && (
-            <div className="mt-2 flex items-center gap-2">
-              <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden"><div className={'h-full ' + getLeadScoreColor(contact.leadScore)} style={{ width: contact.leadScore + '%' }} /></div>
-              <span className="text-ios-footnote text-[#6b7280]">{contact.leadScore}%</span>
-            </div>
-          )}
         </div>
         <div className="flex flex-wrap justify-center gap-2 sm:gap-3 mt-6 px-4">
           {contact.phone && (<>
@@ -340,16 +313,17 @@ export default function ContactDetail() {
         </div>
         {contact.address && (<div className="mx-4 mt-8"><div className="bg-white rounded-[10px] overflow-hidden"><button onClick={() => copyToClipboard(contact.address!, 'address')} className="w-full px-4 py-3 flex items-start justify-between active:bg-[#f2f2f7] transition-colors"><div className="text-left flex-1 min-w-0"><p className="text-ios-footnote text-[#6b7280]">ubicacion</p><p className="text-ios-body text-[#007aff] mt-0.5 pr-2">{contact.address}</p></div>{copiedField === 'address' ? <Check className="h-5 w-5 text-[#34c759] mt-2 shrink-0" /> : <Copy className="h-5 w-5 text-[#c7c7cc] mt-2 shrink-0" />}</button></div></div>)}
         
-        <p className="mx-4 mt-8 mb-2 text-ios-footnote text-[#6b7280] uppercase">Gestion Comercial</p>
-        <div className="mx-4 bg-white rounded-[10px] overflow-hidden">
-          <div className="divide-y divide-[rgba(60,60,67,0.29)]">
-            {contact.lastContactDate && (<div className="px-4 py-3 flex items-center justify-between"><div className="flex items-center gap-2"><Clock className="h-4 w-4 text-[#8e8e93]" /><span className="text-ios-body text-[#6b7280]">Ultimo contacto</span></div><span className="text-ios-body text-[#8e8e93]">{formatRelativeTime(contact.lastContactDate)}</span></div>)}
-            {contact.leadSource && (<div className="px-4 py-3 flex items-center justify-between"><div className="flex items-center gap-2"><Target className="h-4 w-4 text-[#6b7280]" /><span className="text-ios-body text-[#6b7280]">Fuente</span></div><span className="text-ios-body">{getLeadSourceLabel(contact.leadSource)}</span></div>)}
-            {contact.potentialValue !== undefined && contact.potentialValue > 0 && (<div className="px-4 py-3 flex items-center justify-between"><div className="flex items-center gap-2"><DollarSign className="h-4 w-4 text-green-600" /><span className="text-ios-body text-[#6b7280]">Valor potencial</span></div><span className="text-ios-body text-green-600 font-medium">{formatCurrency(contact.potentialValue)}</span></div>)}
-            {contact.nextFollowup && (<div className="px-4 py-3 flex items-center justify-between"><div className="flex items-center gap-2"><Calendar className="h-4 w-4 text-[#007aff]" /><span className="text-ios-body text-[#6b7280]">Proximo seguimiento</span></div><span className="text-ios-body text-[#007aff]">{formatDateTime(contact.nextFollowup)}</span></div>)}
-            {!contact.lastContactDate && !contact.leadSource && (!contact.potentialValue || contact.potentialValue === 0) && !contact.nextFollowup && (<div className="px-4 py-3 text-center"><span className="text-ios-body text-[#c7c7cc]">Sin datos comerciales</span></div>)}
-          </div>
-        </div>
+        {(contact.lastContactDate || contact.leadSource) && (
+          <>
+            <p className="mx-4 mt-8 mb-2 text-ios-footnote text-[#6b7280] uppercase">Informacion</p>
+            <div className="mx-4 bg-white rounded-[10px] overflow-hidden">
+              <div className="divide-y divide-[rgba(60,60,67,0.29)]">
+                {contact.lastContactDate && (<div className="px-4 py-3 flex items-center justify-between"><div className="flex items-center gap-2"><Clock className="h-4 w-4 text-[#8e8e93]" /><span className="text-ios-body text-[#6b7280]">Ultimo contacto</span></div><span className="text-ios-body text-[#8e8e93]">{formatRelativeTime(contact.lastContactDate)}</span></div>)}
+                {contact.leadSource && (<div className="px-4 py-3 flex items-center justify-between"><div className="flex items-center gap-2"><Target className="h-4 w-4 text-[#6b7280]" /><span className="text-ios-body text-[#6b7280]">Fuente</span></div><span className="text-ios-body">{getLeadSourceLabel(contact.leadSource)}</span></div>)}
+              </div>
+            </div>
+          </>
+        )}
         
         <div className="mx-4 mt-8">
           <div className="bg-white rounded-[10px] overflow-hidden">

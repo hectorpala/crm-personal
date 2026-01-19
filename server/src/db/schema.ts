@@ -14,10 +14,7 @@ export const contacts = sqliteTable('contacts', {
   score: integer('score').default(0),
   // Campos de gestion comercial
   leadSource: text('lead_source', { enum: ['referido', 'web', 'redes', 'evento', 'llamada_fria', 'otro'] }),
-  leadScore: integer('lead_score').default(0),
-  potentialValue: real('potential_value').default(0),
   lastContactDate: text('last_contact_date'),
-  nextFollowup: text('next_followup'),
   notes: text('notes'),
   createdAt: text('created_at').default('CURRENT_TIMESTAMP'),
   updatedAt: text('updated_at').default('CURRENT_TIMESTAMP'),
@@ -38,6 +35,7 @@ export const opportunities = sqliteTable('opportunities', {
   probability: integer('probability').default(50),
   stage: text('stage').default('Lead'),
   expectedCloseDate: text('expected_close_date'),
+  nextFollowup: text('next_followup'),
   notes: text('notes'),
   createdAt: text('created_at').default('CURRENT_TIMESTAMP'),
   updatedAt: text('updated_at').default('CURRENT_TIMESTAMP'),
