@@ -123,23 +123,8 @@ whatsappRoutes.post('/send', async (c) => {
     if (status.ready) {
       const result = await sendWhatsAppMessage(phone, message)
       
-      if (result.success && contactId) {
-        // Log conversation
-        await db.insert(conversations).values({
-          contactId: parseInt(contactId),
-          type: 'whatsapp',
-          content: message,
-          direction: 'saliente',
-          channel: 'whatsapp',
-          createdAt: new Date().toISOString(),
-        })
-        
-        // Update lastContactDate
-        await db.update(contacts)
-          .set({ lastContactDate: new Date().toISOString() })
-          .where(eq(contacts.id, parseInt(contactId)))
-      }
-      
+      // Note: Conversation is logged by message_create event in whatsapp-web.ts
+      // to avoid duplicates and ensure all outgoing messages are captured
       return c.json(result)
     }
   }
