@@ -106,6 +106,29 @@ export function initializeDatabase() {
     );
   `)
 
+  // Add missing columns (migrations for schema updates)
+  const migrations = [
+    // Contacts table columns
+    "ALTER TABLE contacts ADD COLUMN lead_source TEXT",
+    "ALTER TABLE contacts ADD COLUMN last_contact_date TEXT",
+    "ALTER TABLE contacts ADD COLUMN notes TEXT",
+    // Opportunities table columns
+    "ALTER TABLE opportunities ADD COLUMN next_followup TEXT",
+    // Tasks table columns
+    "ALTER TABLE tasks ADD COLUMN google_calendar_event_id TEXT",
+  ]
+
+  for (const migration of migrations) {
+    try {
+      sqlite.exec(migration)
+    } catch (e: any) {
+      // Ignore "duplicate column" errors
+      if (!e.message.includes('duplicate column')) {
+        console.error('Migration error:', e.message)
+      }
+    }
+  }
+
   // Insert default pipeline stages if empty
   const stagesCount = sqlite.prepare('SELECT COUNT(*) as count FROM pipeline_stages').get() as { count: number }
   if (stagesCount.count === 0) {
