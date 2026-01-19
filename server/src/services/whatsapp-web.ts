@@ -147,7 +147,40 @@ export function initWhatsAppClient() {
 
         console.log('Message saved for contact:', contact.name)
       } else {
-        console.log('Contact not found for phone variants:', phoneVariants)
+        // Auto-create new contact from unknown number
+        const waName = waContact?.pushname || waContact?.name || null
+        const formattedPhone = phoneVariants[0] // Use first variant (with +)
+        
+        const newContact = await db.insert(contacts).values({
+          name: waName || "Nuevo - " + phone,
+          email: phone + "@whatsapp",
+          phone: formattedPhone,
+          category: "prospecto",
+          leadSource: "whatsapp" as const,
+          tags: JSON.stringify(["WhatsApp", "Auto-creado"]),
+          score: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }).returning()
+        
+        if (newContact[0]) {
+          // Save the message to the new contact
+          await db.insert(conversations).values({
+            contactId: newContact[0].id,
+            type: "whatsapp",
+            content: message.body,
+            direction: "entrante",
+            channel: "whatsapp",
+            createdAt: new Date().toISOString(),
+          })
+          
+          // Update lastContactDate
+          await db.update(contacts)
+            .set({ lastContactDate: new Date().toISOString() })
+            .where(eq(contacts.id, newContact[0].id))
+          
+          console.log("New contact created from WhatsApp:", newContact[0].name, formattedPhone)
+        }
       }
     } catch (error) {
       console.error('Error processing incoming message:', error)
