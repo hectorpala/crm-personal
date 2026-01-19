@@ -116,6 +116,9 @@ export function initializeDatabase() {
     "ALTER TABLE opportunities ADD COLUMN next_followup TEXT",
     // Tasks table columns
     "ALTER TABLE tasks ADD COLUMN google_calendar_event_id TEXT",
+    // Conversations table columns for media support
+    "ALTER TABLE conversations ADD COLUMN media_type TEXT",
+    "ALTER TABLE conversations ADD COLUMN media_url TEXT",
   ]
 
   for (const migration of migrations) {

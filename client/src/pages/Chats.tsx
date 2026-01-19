@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { MessageCircle, Send, Phone, ArrowLeft, User, Trash2, RefreshCw } from 'lucide-react'
+import { MessageCircle, Send, Phone, ArrowLeft, User, Trash2, RefreshCw, Image, Mic, Video, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
@@ -23,6 +23,8 @@ interface ChatContact {
   content: string
   direction: string
   createdAt: string
+  mediaType?: string | null
+  mediaUrl?: string | null
   contact: {
     id: number
     name: string
@@ -46,6 +48,120 @@ interface Message {
   direction: string
   createdAt: string
   type: string
+  mediaType?: string | null
+  mediaUrl?: string | null
+}
+
+// Media preview component
+function MediaPreview({ mediaType, mediaUrl, content }: { mediaType?: string | null; mediaUrl?: string | null; content: string }) {
+  if (!mediaType || !mediaUrl) {
+    return <p className="text-sm whitespace-pre-wrap break-words">{content}</p>
+  }
+
+  const fullUrl = mediaUrl.startsWith('/') ? mediaUrl : '/' + mediaUrl
+
+  if (mediaType === 'image') {
+    return (
+      <div className="space-y-1">
+        <a href={fullUrl} target="_blank" rel="noopener noreferrer">
+          <img 
+            src={fullUrl} 
+            alt="Imagen" 
+            className="max-w-full rounded-lg max-h-64 object-contain cursor-pointer hover:opacity-90"
+            loading="lazy"
+          />
+        </a>
+        {content && content !== '[image]' && (
+          <p className="text-sm whitespace-pre-wrap break-words">{content}</p>
+        )}
+      </div>
+    )
+  }
+
+  if (mediaType === 'audio') {
+    return (
+      <div className="space-y-1">
+        <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-2">
+          <Mic className="h-5 w-5 text-green-600 flex-shrink-0" />
+          <audio controls className="w-full max-w-[200px] h-8">
+            <source src={fullUrl} />
+            Tu navegador no soporta audio
+          </audio>
+        </div>
+        {content && content !== '[audio]' && (
+          <p className="text-sm whitespace-pre-wrap break-words">{content}</p>
+        )}
+      </div>
+    )
+  }
+
+  if (mediaType === 'video') {
+    return (
+      <div className="space-y-1">
+        <video 
+          controls 
+          className="max-w-full rounded-lg max-h-64"
+          preload="metadata"
+        >
+          <source src={fullUrl} />
+          Tu navegador no soporta video
+        </video>
+        {content && content !== '[video]' && (
+          <p className="text-sm whitespace-pre-wrap break-words">{content}</p>
+        )}
+      </div>
+    )
+  }
+
+  if (mediaType === 'document') {
+    return (
+      <div className="space-y-1">
+        <a 
+          href={fullUrl} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 bg-gray-100 rounded-lg p-3 hover:bg-gray-200 transition-colors"
+        >
+          <FileText className="h-8 w-8 text-blue-600" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate">Documento</p>
+            <p className="text-xs text-muted-foreground">Clic para abrir</p>
+          </div>
+        </a>
+        {content && content !== '[document]' && (
+          <p className="text-sm whitespace-pre-wrap break-words">{content}</p>
+        )}
+      </div>
+    )
+  }
+
+  // Default fallback
+  return (
+    <div className="space-y-1">
+      <a 
+        href={fullUrl} 
+        target="_blank" 
+        rel="noopener noreferrer"
+        className="text-blue-600 underline text-sm"
+      >
+        Ver archivo adjunto
+      </a>
+      {content && (
+        <p className="text-sm whitespace-pre-wrap break-words">{content}</p>
+      )}
+    </div>
+  )
+}
+
+// Media icon for chat list preview
+function MediaIcon({ mediaType }: { mediaType?: string | null }) {
+  if (!mediaType) return null
+  
+  if (mediaType === 'image') return <Image className="h-3 w-3 inline mr-1" />
+  if (mediaType === 'audio') return <Mic className="h-3 w-3 inline mr-1" />
+  if (mediaType === 'video') return <Video className="h-3 w-3 inline mr-1" />
+  if (mediaType === 'document') return <FileText className="h-3 w-3 inline mr-1" />
+  return null
 }
 
 export default function Chats() {
@@ -204,6 +320,20 @@ export default function Chats() {
     }
   }
 
+  // Get preview text for chat list
+  const getPreviewText = (chat: ChatContact) => {
+    if (chat.mediaType) {
+      const mediaNames: Record<string, string> = {
+        image: 'Imagen',
+        audio: 'Audio',
+        video: 'Video',
+        document: 'Documento',
+      }
+      return mediaNames[chat.mediaType] || 'Archivo'
+    }
+    return chat.content
+  }
+
   return (
     <div className="flex h-[calc(100vh-8rem)] lg:h-[calc(100vh-6rem)] bg-white rounded-lg border overflow-hidden">
       {/* Left Panel - Chat List */}
@@ -272,7 +402,8 @@ export default function Chats() {
                     </div>
                     <p className="text-sm text-muted-foreground truncate">
                       {chat.direction === 'saliente' && '✓ '}
-                      {chat.content}
+                      <MediaIcon mediaType={chat.mediaType} />
+                      {getPreviewText(chat)}
                     </p>
                   </div>
                 </button>
@@ -443,7 +574,11 @@ export default function Chats() {
                             : "bg-white rounded-tl-none"
                         )}
                       >
-                        <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                        <MediaPreview 
+                          mediaType={msg.mediaType} 
+                          mediaUrl={msg.mediaUrl} 
+                          content={msg.content} 
+                        />
                         <p className={cn(
                           "text-[10px] text-right mt-1",
                           msg.direction === 'saliente' ? "text-green-700" : "text-gray-500"

@@ -4,6 +4,8 @@ import QRCode from 'qrcode'
 import { db } from '../db'
 import { conversations, contacts, opportunities } from '../db/schema'
 import { eq, or, like } from 'drizzle-orm'
+import { writeFileSync, mkdirSync, existsSync } from 'fs'
+import { join } from 'path'
 import { platform } from 'os'
 
 // Get Chrome/Chromium path based on OS
@@ -13,6 +15,12 @@ function getChromePath(): string {
   }
   // Linux - try common paths
   return '/usr/bin/chromium-browser'
+}
+
+// Uploads directory for media files
+const UPLOADS_DIR = process.env.UPLOADS_DIR || './uploads'
+if (!existsSync(UPLOADS_DIR)) {
+  mkdirSync(UPLOADS_DIR, { recursive: true })
 }
 
 // WhatsApp Web client state
@@ -45,6 +53,46 @@ function normalizeMexicanPhone(phone: string): string[] {
   }
 
   return variants
+}
+
+// Save media file and return the path
+async function saveMediaFile(media: any, messageId: string): Promise<{ mediaType: string; mediaUrl: string } | null> {
+  try {
+    if (!media || !media.data) return null
+
+    // Determine file extension based on mimetype
+    const mimeToExt: Record<string, string> = {
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/gif': 'gif',
+      'image/webp': 'webp',
+      'audio/ogg; codecs=opus': 'ogg',
+      'audio/mpeg': 'mp3',
+      'audio/mp4': 'm4a',
+      'video/mp4': 'mp4',
+      'application/pdf': 'pdf',
+    }
+
+    const ext = mimeToExt[media.mimetype] || media.mimetype.split('/')[1] || 'bin'
+    const timestamp = Date.now()
+    const filename = timestamp + '_' + messageId.replace(/[^a-zA-Z0-9]/g, '_') + '.' + ext
+    const filepath = join(UPLOADS_DIR, filename)
+
+    // Save the file
+    writeFileSync(filepath, Buffer.from(media.data, 'base64'))
+
+    // Determine media type category
+    let mediaType = 'document'
+    if (media.mimetype.startsWith('image/')) mediaType = 'image'
+    else if (media.mimetype.startsWith('audio/')) mediaType = 'audio'
+    else if (media.mimetype.startsWith('video/')) mediaType = 'video'
+
+    console.log('Saved media file:', filename, 'type:', mediaType)
+    return { mediaType, mediaUrl: '/api/media/' + filename }
+  } catch (error) {
+    console.error('Error saving media file:', error)
+    return null
+  }
 }
 
 // Initialize WhatsApp client
@@ -100,14 +148,15 @@ export function initWhatsAppClient() {
     try {
       const isOutgoing = message.fromMe
       const direction = isOutgoing ? 'saliente' : 'entrante'
-      
+
       // Debug: log all message events
-      console.log('message event:', { 
-        fromMe: message.fromMe, 
-        from: message.from, 
-        to: message.to, 
+      console.log('message event:', {
+        fromMe: message.fromMe,
+        from: message.from,
+        to: message.to,
         direction,
-        body: message.body?.substring(0, 50) 
+        hasMedia: message.hasMedia,
+        body: message.body?.substring(0, 50)
       })
 
       // Skip status broadcasts
@@ -132,6 +181,22 @@ export function initWhatsAppClient() {
         return
       }
 
+      // Handle media if present
+      let mediaData: { mediaType: string; mediaUrl: string } | null = null
+      if (message.hasMedia) {
+        try {
+          const media = await message.downloadMedia()
+          if (media) {
+            mediaData = await saveMediaFile(media, message.id._serialized || String(Date.now()))
+          }
+        } catch (mediaError) {
+          console.error('Error downloading media:', mediaError)
+        }
+      }
+
+      // Get content - use caption for media or body for text
+      const content = message.body || (mediaData ? '[' + mediaData.mediaType + ']' : '[mensaje sin contenido]')
+
       // Get all possible phone formats to search
       const phoneVariants = normalizeMexicanPhone(phone)
       console.log('Searching for phone variants:', phoneVariants, 'direction:', direction)
@@ -147,13 +212,15 @@ export function initWhatsAppClient() {
       }
 
       if (contact) {
-        // Log message
+        // Log message with media info
         await db.insert(conversations).values({
           contactId: contact.id,
           type: 'whatsapp',
-          content: message.body,
+          content: content,
           direction: direction,
           channel: 'whatsapp',
+          mediaType: mediaData?.mediaType || null,
+          mediaUrl: mediaData?.mediaUrl || null,
           createdAt: new Date().toISOString(),
         })
 
@@ -162,7 +229,7 @@ export function initWhatsAppClient() {
           .set({ lastContactDate: new Date().toISOString() })
           .where(eq(contacts.id, contact.id))
 
-        console.log('Message saved for contact:', contact.name, 'direction:', direction)
+        console.log('Message saved for contact:', contact.name, 'direction:', direction, 'media:', mediaData?.mediaType || 'none')
       } else if (!isOutgoing) {
         // Auto-create new contact from unknown incoming number only
         const waName = waContact?.name || waContact?.pushname || null
@@ -182,13 +249,15 @@ export function initWhatsAppClient() {
         }).returning()
 
         if (newContact[0]) {
-          // Save the message to the new contact
+          // Save the message to the new contact with media
           await db.insert(conversations).values({
             contactId: newContact[0].id,
             type: "whatsapp",
-            content: message.body,
+            content: content,
             direction: "entrante",
             channel: "whatsapp",
+            mediaType: mediaData?.mediaType || null,
+            mediaUrl: mediaData?.mediaUrl || null,
             createdAt: new Date().toISOString(),
           })
 
@@ -225,22 +294,38 @@ export function initWhatsAppClient() {
     try {
       // Only process messages sent by us (outgoing)
       if (!message.fromMe) return
-      
+
       // Skip status broadcasts
       if (message.to === 'status@broadcast') return
-      
-      console.log('message_create (outgoing):', { to: message.to, body: message.body?.substring(0, 50) })
+
+      console.log('message_create (outgoing):', { to: message.to, hasMedia: message.hasMedia, body: message.body?.substring(0, 50) })
 
       // Get the recipient phone number
       const phone = message.to.replace(/@c\.us$/, '').replace(/@lid$/, '')
-      
+
       // Skip group messages
       if (!phone || phone.includes('@g.us')) return
+
+      // Handle media if present
+      let mediaData: { mediaType: string; mediaUrl: string } | null = null
+      if (message.hasMedia) {
+        try {
+          const media = await message.downloadMedia()
+          if (media) {
+            mediaData = await saveMediaFile(media, message.id._serialized || String(Date.now()))
+          }
+        } catch (mediaError) {
+          console.error('Error downloading media:', mediaError)
+        }
+      }
+
+      // Get content
+      const content = message.body || (mediaData ? '[' + mediaData.mediaType + ']' : '[mensaje sin contenido]')
 
       // Get all possible phone formats
       const phoneVariants = normalizeMexicanPhone(phone)
       console.log('Searching outgoing phone variants:', phoneVariants)
-      
+
       // Find contact by phone
       let contact = null
       for (const variant of phoneVariants) {
@@ -252,13 +337,15 @@ export function initWhatsAppClient() {
       }
 
       if (contact) {
-        // Log outgoing message
+        // Log outgoing message with media
         await db.insert(conversations).values({
           contactId: contact.id,
           type: 'whatsapp',
-          content: message.body,
+          content: content,
           direction: 'saliente',
           channel: 'whatsapp',
+          mediaType: mediaData?.mediaType || null,
+          mediaUrl: mediaData?.mediaUrl || null,
           createdAt: new Date().toISOString(),
         })
 
@@ -267,7 +354,7 @@ export function initWhatsAppClient() {
           .set({ lastContactDate: new Date().toISOString() })
           .where(eq(contacts.id, contact.id))
 
-        console.log('Outgoing message saved for contact:', contact.name)
+        console.log('Outgoing message saved for contact:', contact.name, 'media:', mediaData?.mediaType || 'none')
       } else {
         console.log('No contact found for outgoing message to:', phone, 'variants:', phoneVariants)
       }

@@ -49,6 +49,8 @@ export const conversations = sqliteTable('conversations', {
   content: text('content').notNull(),
   direction: text('direction', { enum: ['entrante', 'saliente'] }).default('saliente'),
   channel: text('channel', { enum: ['manual', 'email', 'whatsapp', 'telefono'] }).default('manual'),
+  mediaType: text('media_type', { enum: ['image', 'audio', 'video', 'document', 'sticker'] }),
+  mediaUrl: text('media_url'),
   createdAt: text('created_at').default('CURRENT_TIMESTAMP'),
 })
 

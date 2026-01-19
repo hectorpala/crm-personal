@@ -3,6 +3,8 @@ import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
+import { readFileSync, existsSync } from 'fs'
+import { join } from 'path'
 import { contactsRoutes } from './routes/contacts'
 import { opportunitiesRoutes } from './routes/opportunities'
 import { tasksRoutes } from './routes/tasks'
@@ -21,6 +23,7 @@ const app = new Hono()
 const isProduction = process.env.NODE_ENV === 'production'
 const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173'
 const port = parseInt(process.env.PORT || '3000')
+const UPLOADS_DIR = process.env.UPLOADS_DIR || './uploads'
 
 // Middleware
 app.use('*', logger())
@@ -31,6 +34,53 @@ app.use('/api/*', cors({
 
 // Health check
 app.get('/api/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }))
+
+// Media files endpoint
+app.get('/api/media/:filename', (c) => {
+  const filename = c.req.param('filename')
+  
+  // Security: only allow alphanumeric, underscore, dash, and dot
+  if (!/^[a-zA-Z0-9_\-.]+$/.test(filename)) {
+    return c.json({ error: 'Invalid filename' }, 400)
+  }
+  
+  const filepath = join(UPLOADS_DIR, filename)
+  
+  if (!existsSync(filepath)) {
+    return c.json({ error: 'File not found' }, 404)
+  }
+  
+  try {
+    const file = readFileSync(filepath)
+    
+    // Determine content type
+    const ext = filename.split('.').pop()?.toLowerCase()
+    const contentTypes: Record<string, string> = {
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+      'gif': 'image/gif',
+      'webp': 'image/webp',
+      'ogg': 'audio/ogg',
+      'mp3': 'audio/mpeg',
+      'm4a': 'audio/mp4',
+      'mp4': 'video/mp4',
+      'pdf': 'application/pdf',
+    }
+    
+    const contentType = contentTypes[ext || ''] || 'application/octet-stream'
+    
+    return new Response(file, {
+      headers: {
+        'Content-Type': contentType,
+        'Cache-Control': 'public, max-age=31536000',
+      },
+    })
+  } catch (error) {
+    console.error('Error serving media file:', error)
+    return c.json({ error: 'Error reading file' }, 500)
+  }
+})
 
 // API Routes
 app.route('/api/contacts', contactsRoutes)
