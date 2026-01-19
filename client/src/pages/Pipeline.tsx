@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, DollarSign, Loader2, Trash2 } from 'lucide-react'
+import { Plus, DollarSign, Loader2, Trash2, Pencil } from 'lucide-react'
 import type { PipelineStage, Opportunity, Contact } from '@/types'
 import { LoadingState } from '@/components/ui/loading-state'
 import { useToast } from '@/hooks/use-toast'
@@ -35,6 +35,8 @@ const defaultStages: PipelineStage[] = [
 
 export default function Pipeline() {
   const [isNewOppOpen, setIsNewOppOpen] = useState(false)
+  const [editingOpp, setEditingOpp] = useState<Opportunity | null>(null)
+  const [editForm, setEditForm] = useState({ value: '', notes: '', stage: '' })
   const [newOpp, setNewOpp] = useState({
     title: '',
     contactId: '',
@@ -97,6 +99,26 @@ export default function Pipeline() {
     },
   })
 
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: { value?: number; notes?: string; stage?: string } }) => {
+      const res = await fetch('/api/opportunities/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      if (!res.ok) throw new Error('Error al actualizar')
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['opportunities'] })
+      setEditingOpp(null)
+      toast({ title: 'Actualizado', description: 'Oportunidad actualizada correctamente.' })
+    },
+    onError: () => {
+      toast({ variant: 'destructive', title: 'Error', description: 'No se pudo actualizar.' })
+    },
+  })
+
   const updateStageMutation = useMutation({
     mutationFn: async ({ id, stage }: { id: number; stage: string }) => {
       const res = await fetch('/api/opportunities/' + id + '/stage', {
@@ -148,6 +170,28 @@ export default function Pipeline() {
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
+  }
+
+  const openEditDialog = (opp: Opportunity) => {
+    setEditingOpp(opp)
+    setEditForm({
+      value: opp.value.toString(),
+      notes: opp.notes || '',
+      stage: opp.stage,
+    })
+  }
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingOpp) return
+    updateMutation.mutate({
+      id: editingOpp.id,
+      data: {
+        value: parseFloat(editForm.value) || 0,
+        notes: editForm.notes,
+        stage: editForm.stage,
+      },
+    })
   }
 
   if (stagesLoading || oppsLoading) {
@@ -261,6 +305,67 @@ export default function Pipeline() {
         </div>
       </div>
 
+      {/* Edit Dialog */}
+      <Dialog open={!!editingOpp} onOpenChange={(open) => !open && setEditingOpp(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-4 w-4" />
+              Editar: {editingOpp?.title}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-value">Valor ($)</Label>
+              <Input
+                id="edit-value"
+                type="number"
+                value={editForm.value}
+                onChange={(e) => setEditForm({ ...editForm, value: e.target.value })}
+                placeholder="0"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-stage">Etapa</Label>
+              <Select value={editForm.stage} onValueChange={(v) => setEditForm({ ...editForm, stage: v })}>
+                <SelectTrigger id="edit-stage">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {stages.map((s) => (
+                    <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-notes">Notas</Label>
+              <Textarea
+                id="edit-notes"
+                value={editForm.notes}
+                onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                placeholder="Agregar notas..."
+                rows={4}
+              />
+            </div>
+            {editingOpp?.contact && (
+              <div className="text-sm text-muted-foreground">
+                Contacto: <span className="font-medium text-foreground">{editingOpp.contact.name}</span>
+              </div>
+            )}
+            <div className="flex gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setEditingOpp(null)} className="flex-1">
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={updateMutation.isPending} className="flex-1">
+                {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Guardar'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       <div className="flex gap-4 overflow-x-auto pb-4">
         {stages.map((stage, index) => (
           <div
@@ -295,13 +400,14 @@ export default function Pipeline() {
                       key={opp.id}
                       draggable
                       onDragStart={(e) => handleDragStart(e, opp.id)}
-                      className="cursor-grab active:cursor-grabbing hover:shadow-md transition-all group"
+                      onClick={() => openEditDialog(opp)}
+                      className="cursor-pointer hover:shadow-md transition-all group hover:border-primary/50"
                     >
                       <CardContent className="p-3">
                         <div className="flex items-start justify-between">
                           <p className="font-medium text-sm">{opp.title}</p>
                           <button
-                            onClick={() => deleteMutation.mutate(opp.id)}
+                            onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(opp.id) }}
                             className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -309,9 +415,14 @@ export default function Pipeline() {
                         </div>
                         <p className="text-xs text-muted-foreground">{opp.contact?.name || 'Sin contacto'}</p>
                         <div className="mt-2 flex items-center justify-between">
-                          <span className="text-sm font-semibold">{formatCurrency(opp.value)}</span>
+                          <span className="text-sm font-semibold text-green-600">{formatCurrency(opp.value)}</span>
                           <Badge variant="outline" className="text-xs">{opp.probability}%</Badge>
                         </div>
+                        {opp.notes && (
+                          <p className="text-xs text-muted-foreground mt-2 line-clamp-2 border-t pt-2">
+                            {opp.notes}
+                          </p>
+                        )}
                       </CardContent>
                     </Card>
                   ))

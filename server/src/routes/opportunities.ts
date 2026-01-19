@@ -43,20 +43,26 @@ opportunitiesRoutes.post('/', async (c) => {
   return c.json(result[0], 201)
 })
 
-// Update opportunity
+// Update opportunity (partial update)
 opportunitiesRoutes.put('/:id', async (c) => {
   const id = parseInt(c.req.param('id'))
   const body = await c.req.json()
+  
+  // Build update object with only provided fields
+  const updateData: Record<string, any> = {
+    updatedAt: new Date().toISOString(),
+  }
+  
+  if (body.title !== undefined) updateData.title = body.title
+  if (body.value !== undefined) updateData.value = body.value
+  if (body.probability !== undefined) updateData.probability = body.probability
+  if (body.stage !== undefined) updateData.stage = body.stage
+  if (body.expectedCloseDate !== undefined) updateData.expectedCloseDate = body.expectedCloseDate
+  if (body.notes !== undefined) updateData.notes = body.notes
+  if (body.contactId !== undefined) updateData.contactId = body.contactId
+  
   const result = await db.update(opportunities)
-    .set({
-      title: body.title,
-      value: body.value,
-      probability: body.probability,
-      stage: body.stage,
-      expectedCloseDate: body.expectedCloseDate,
-      notes: body.notes,
-      updatedAt: new Date().toISOString(),
-    })
+    .set(updateData)
     .where(eq(opportunities.id, id))
     .returning()
   return c.json(result[0])
