@@ -10,7 +10,6 @@ import { conversationsRoutes } from './routes/conversations'
 import { messagingRoutes } from './routes/messaging'
 import { settingsRoutes } from './routes/settings'
 import { googleSheetsRoutes } from './routes/google-sheets'
-import { googleCalendarRoutes } from './routes/google-calendar'
 import { emailRoutes } from './routes/email'
 import { whatsappRoutes } from './routes/whatsapp'
 import { initWhatsAppClient, isWhatsAppEnabled } from './services/whatsapp-web'
@@ -40,7 +39,6 @@ app.route('/api/conversations', conversationsRoutes)
 app.route('/api/messaging', messagingRoutes)
 app.route('/api/settings', settingsRoutes)
 app.route('/api/google-sheets', googleSheetsRoutes)
-app.route('/api/google-calendar', googleCalendarRoutes)
 app.route('/api/email', emailRoutes)
 app.route('/api/whatsapp', whatsappRoutes)
 
