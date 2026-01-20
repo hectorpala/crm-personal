@@ -280,13 +280,14 @@ export function initWhatsAppClient() {
       // IMPORTANT: message.to can be a LID (Linked Device ID) like "280358620774586@lid"
       // LIDs are NOT phone numbers - we need to get the real phone from the chat
       let phone = ''
+      let chatObj: any = null // Store chat object to reuse for name resolution
       const isLid = message.to.includes('@lid')
 
       if (isLid) {
         // LID detected - get real phone from chat object
         try {
-          const chat = await message.getChat()
-          phone = chat?.id?.user || ''
+          chatObj = await message.getChat()
+          phone = chatObj?.id?.user || ''
           console.log('LID detected, got phone from chat:', phone)
         } catch (e) {
           console.log('Could not get chat for LID, skipping message')
@@ -348,12 +349,14 @@ export function initWhatsAppClient() {
         console.log('Outgoing message saved for contact:', contact.name, 'media:', mediaData?.mediaType || 'none')
       } else {
         // Auto-create contact for outgoing message to unknown number
-        // FIX: NO usar message.getContact() porque devuelve el admin en mensajes salientes
-        // En su lugar, obtener el nombre del chat del destinatario
+        // FIX: Use chatObj if we already have it (from LID detection), otherwise fetch it
+        // NEVER use message.getContact() - it returns admin for outgoing messages
         let recipientName: string | null = null
         try {
-          const chat = await client?.getChatById(message.to)
-          recipientName = chat?.name || null
+          if (!chatObj) {
+            chatObj = await client?.getChatById(message.to)
+          }
+          recipientName = chatObj?.name || null
         } catch (e) {
           console.log('Could not get chat name for recipient')
         }
@@ -403,7 +406,6 @@ export function initWhatsAppClient() {
       console.error('Error processing outgoing message:', error)
     }
   })
-
   client.initialize()
 }
 
