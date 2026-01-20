@@ -264,6 +264,7 @@ export function initWhatsAppClient() {
   })
 
 
+
   // Handle outgoing messages sent from phone (message_create captures ALL messages)
   client.on('message_create', async (message: any) => {
     try {
@@ -275,11 +276,37 @@ export function initWhatsAppClient() {
 
       console.log('message_create (outgoing):', { to: message.to, hasMedia: message.hasMedia, body: message.body?.substring(0, 50) })
 
-      // Get the recipient phone number from message.to
-      const phone = message.to.replace(/@c\.us$/, '').replace(/@lid$/, '')
+      // Get the recipient phone number
+      // IMPORTANT: message.to can be a LID (Linked Device ID) like "280358620774586@lid"
+      // LIDs are NOT phone numbers - we need to get the real phone from the chat
+      let phone = ''
+      const isLid = message.to.includes('@lid')
+
+      if (isLid) {
+        // LID detected - get real phone from chat object
+        try {
+          const chat = await message.getChat()
+          phone = chat?.id?.user || ''
+          console.log('LID detected, got phone from chat:', phone)
+        } catch (e) {
+          console.log('Could not get chat for LID, skipping message')
+          return
+        }
+      } else {
+        phone = message.to.replace(/@c\.us$/, '')
+      }
+
+      // Validate phone is a real phone number (not a LID remnant)
+      // Real Mexican phones: 10 digits local, or 12-13 with country code (52/521)
+      // LIDs are typically 15+ digits and don't start with valid country codes
+      const cleanedPhone = phone.replace(/[^0-9]/g, '')
+      if (!cleanedPhone || cleanedPhone.length < 10 || cleanedPhone.length > 13) {
+        console.log('Skipping invalid phone (likely LID):', phone, 'length:', cleanedPhone.length)
+        return
+      }
 
       // Skip group messages
-      if (!phone || phone.includes('@g.us')) return
+      if (phone.includes('@g.us')) return
 
       // Handle media if present
       let mediaData: { mediaType: 'image' | 'audio' | 'video' | 'document' | 'sticker'; mediaUrl: string } | null = null
