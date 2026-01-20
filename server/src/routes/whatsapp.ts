@@ -10,6 +10,7 @@ import {
   isWhatsAppEnabled,
   getAllWhatsAppChats 
 } from '../services/whatsapp-web'
+import { normalizePhoneToCanonical, getPhoneVariants } from '../utils/phone'
 
 export const whatsappRoutes = new Hono()
 
@@ -40,28 +41,7 @@ function formatPhoneForAPI(phone: string): string {
   return cleaned
 }
 
-// Normalize phone variants for search
-function getPhoneVariants(phone: string): string[] {
-  const variants: string[] = []
-  const clean = phone.replace(/[^0-9]/g, '')
-  
-  variants.push('+' + clean)
-  variants.push(clean)
-  
-  if (clean.startsWith('521') && clean.length === 13) {
-    const without1 = '52' + clean.substring(3)
-    variants.push('+' + without1)
-    variants.push(without1)
-  }
-  
-  if (clean.startsWith('52') && !clean.startsWith('521') && clean.length === 12) {
-    const with1 = '521' + clean.substring(2)
-    variants.push('+' + with1)
-    variants.push(with1)
-  }
-  
-  return variants
-}
+// Using centralized getPhoneVariants from utils/phone
 
 // Initialize WhatsApp Web client (local mode only)
 whatsappRoutes.post('/init', async (c) => {
@@ -208,7 +188,7 @@ whatsappRoutes.post('/send', async (c) => {
         const newContact = await db.insert(contacts).values({
           name: contactName,
           email: formattedPhone + "@whatsapp",
-          phone: '+' + formattedPhone,
+          phone: normalizePhoneToCanonical(formattedPhone),
           category: "prospecto",
           leadSource: "otro",
           tags: JSON.stringify(["WhatsApp", "Auto-creado", "Cloud API"]),
@@ -366,7 +346,7 @@ whatsappRoutes.post('/webhook', async (c) => {
               const newContact = await db.insert(contacts).values({
                 name: contactName,
                 email: from + "@whatsapp",
-                phone: '+' + from,
+                phone: normalizePhoneToCanonical(from),
                 category: "prospecto",
                 leadSource: "otro",
                 tags: JSON.stringify(["WhatsApp", "Auto-creado", "Cloud API"]),

@@ -7,6 +7,7 @@ import { eq, or, like } from 'drizzle-orm'
 import { writeFileSync, mkdirSync, existsSync } from 'fs'
 import { join } from 'path'
 import { platform } from 'os'
+import { normalizePhoneToCanonical, getPhoneVariants } from '../utils/phone'
 
 // Get Chrome/Chromium path based on OS
 function getChromePath(): string {
@@ -29,34 +30,8 @@ let qrCodeData: string | null = null
 let isReady = false
 let clientInfo: any = null
 
-// Normalize Mexican phone numbers (remove the extra 1 after 52)
-function normalizeMexicanPhone(phone: string): string[] {
-  const variants: string[] = []
-  const clean = phone.replace(/[^0-9]/g, '')
-
-  // Original format with +
-  variants.push('+' + clean)
-  variants.push(clean)
-
-  // If starts with 521, also try 52 (Mexican mobile format)
-  if (clean.startsWith('521') && clean.length === 13) {
-    const without1 = '52' + clean.substring(3)
-    variants.push('+' + without1)
-    variants.push(without1)
-  }
-
-  // If starts with 52 (without 1), also try 521
-  if (clean.startsWith('52') && !clean.startsWith('521') && clean.length === 12) {
-    const with1 = '521' + clean.substring(2)
-    variants.push('+' + with1)
-    variants.push(with1)
-  }
-
-  return variants
-}
-
 // Save media file and return the path
-async function saveMediaFile(media: any, messageId: string): Promise<{ mediaType: string; mediaUrl: string } | null> {
+async function saveMediaFile(media: any, messageId: string): Promise<{ mediaType: 'image' | 'audio' | 'video' | 'document' | 'sticker'; mediaUrl: string } | null> {
   try {
     if (!media || !media.data) return null
 
@@ -82,7 +57,7 @@ async function saveMediaFile(media: any, messageId: string): Promise<{ mediaType
     writeFileSync(filepath, Buffer.from(media.data, 'base64'))
 
     // Determine media type category
-    let mediaType = 'document'
+    let mediaType: 'image' | 'audio' | 'video' | 'document' | 'sticker' = 'document'
     if (media.mimetype.startsWith('image/')) mediaType = 'image'
     else if (media.mimetype.startsWith('audio/')) mediaType = 'audio'
     else if (media.mimetype.startsWith('video/')) mediaType = 'video'
@@ -93,6 +68,21 @@ async function saveMediaFile(media: any, messageId: string): Promise<{ mediaType
     console.error('Error saving media file:', error)
     return null
   }
+}
+
+// Find contact by phone using all variants
+async function findContactByPhone(phone: string) {
+  const variants = getPhoneVariants(phone)
+  console.log('Searching for phone variants:', variants)
+  
+  for (const variant of variants) {
+    const contact = await db.select()
+      .from(contacts)
+      .where(eq(contacts.phone, variant))
+      .get()
+    if (contact) return contact
+  }
+  return null
 }
 
 // Initialize WhatsApp client
@@ -180,7 +170,7 @@ export function initWhatsAppClient() {
       }
 
       // Handle media if present
-      let mediaData: { mediaType: string; mediaUrl: string } | null = null
+      let mediaData: { mediaType: 'image' | 'audio' | 'video' | 'document' | 'sticker'; mediaUrl: string } | null = null
       if (message.hasMedia) {
         try {
           const media = await message.downloadMedia()
@@ -195,19 +185,8 @@ export function initWhatsAppClient() {
       // Get content - use caption for media or body for text
       const content = message.body || (mediaData ? '[' + mediaData.mediaType + ']' : '[mensaje sin contenido]')
 
-      // Get all possible phone formats to search
-      const phoneVariants = normalizeMexicanPhone(phone)
-      console.log('Searching for phone variants:', phoneVariants, 'direction: entrante')
-
-      // Find contact by any phone variant
-      let contact = null
-      for (const variant of phoneVariants) {
-        contact = await db.select()
-          .from(contacts)
-          .where(eq(contacts.phone, variant))
-          .get()
-        if (contact) break
-      }
+      // Find contact by phone (usando función centralizada)
+      let contact = await findContactByPhone(phone)
 
       if (contact) {
         // Log incoming message with media info
@@ -231,7 +210,7 @@ export function initWhatsAppClient() {
       } else {
         // Auto-create new contact from unknown incoming number
         const waName = waContact?.name || waContact?.pushname || null
-        const formattedPhone = phoneVariants[0] // Use first variant (with +)
+        const formattedPhone = normalizePhoneToCanonical(phone) // Formato canónico
         const contactName = waName || "Nuevo - " + phone
 
         const newContact = await db.insert(contacts).values({
@@ -296,14 +275,14 @@ export function initWhatsAppClient() {
 
       console.log('message_create (outgoing):', { to: message.to, hasMedia: message.hasMedia, body: message.body?.substring(0, 50) })
 
-      // Get the recipient phone number
+      // Get the recipient phone number from message.to
       const phone = message.to.replace(/@c\.us$/, '').replace(/@lid$/, '')
 
       // Skip group messages
       if (!phone || phone.includes('@g.us')) return
 
       // Handle media if present
-      let mediaData: { mediaType: string; mediaUrl: string } | null = null
+      let mediaData: { mediaType: 'image' | 'audio' | 'video' | 'document' | 'sticker'; mediaUrl: string } | null = null
       if (message.hasMedia) {
         try {
           const media = await message.downloadMedia()
@@ -318,19 +297,8 @@ export function initWhatsAppClient() {
       // Get content
       const content = message.body || (mediaData ? '[' + mediaData.mediaType + ']' : '[mensaje sin contenido]')
 
-      // Get all possible phone formats
-      const phoneVariants = normalizeMexicanPhone(phone)
-      console.log('Searching outgoing phone variants:', phoneVariants)
-
-      // Find contact by phone
-      let contact = null
-      for (const variant of phoneVariants) {
-        contact = await db.select()
-          .from(contacts)
-          .where(eq(contacts.phone, variant))
-          .get()
-        if (contact) break
-      }
+      // Find contact by phone (usando función centralizada)
+      let contact = await findContactByPhone(phone)
 
       if (contact) {
         // Log outgoing message with media
@@ -353,10 +321,18 @@ export function initWhatsAppClient() {
         console.log('Outgoing message saved for contact:', contact.name, 'media:', mediaData?.mediaType || 'none')
       } else {
         // Auto-create contact for outgoing message to unknown number
-        const waContact = await message.getContact()
-        const waName = waContact?.name || waContact?.pushname || null
-        const formattedPhone = phoneVariants[0]
-        const contactName = waName || "Nuevo - " + phone
+        // FIX: NO usar message.getContact() porque devuelve el admin en mensajes salientes
+        // En su lugar, obtener el nombre del chat del destinatario
+        let recipientName: string | null = null
+        try {
+          const chat = await client?.getChatById(message.to)
+          recipientName = chat?.name || null
+        } catch (e) {
+          console.log('Could not get chat name for recipient')
+        }
+
+        const formattedPhone = normalizePhoneToCanonical(phone) // Formato canónico
+        const contactName = recipientName || "Nuevo - " + phone
 
         const newContact = await db.insert(contacts).values({
           name: contactName,
