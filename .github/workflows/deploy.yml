@@ -40,7 +40,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
-          source: "client/dist/*,server/dist/*"
+          source: "client/dist/*,server/dist/*,server/ecosystem.config.cjs"
           target: "/root/crm/deploy-temp"
           strip_components: 1
 
@@ -53,6 +53,7 @@ jobs:
           script: |
             cp -r /root/crm/deploy-temp/dist/* /root/crm/server/dist/
             cp -r /root/crm/deploy-temp/client/dist/* /root/crm/server/public/
+            cp /root/crm/deploy-temp/ecosystem.config.cjs /root/crm/server/ecosystem.config.cjs
             rm -rf /root/crm/deploy-temp
             cd /root/crm/server && pm2 restart ecosystem.config.cjs
-            echo "Deploy completed!"
+            echo "Deploy completed\!"
