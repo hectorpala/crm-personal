@@ -40,9 +40,8 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
-          source: "client/dist/*,server/dist/*,server/ecosystem.config.cjs"
+          source: "client/dist,server/dist,server/ecosystem.config.cjs"
           target: "/root/crm/deploy-temp"
-          strip_components: 1
 
       - name: Update server and restart PM2
         uses: appleboy/ssh-action@v1.0.3
@@ -51,9 +50,9 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
           script: |
-            cp -r /root/crm/deploy-temp/dist/* /root/crm/server/dist/
+            cp -r /root/crm/deploy-temp/server/dist/* /root/crm/server/dist/
             cp -r /root/crm/deploy-temp/client/dist/* /root/crm/server/public/
-            cp /root/crm/deploy-temp/ecosystem.config.cjs /root/crm/server/ecosystem.config.cjs
+            cp /root/crm/deploy-temp/server/ecosystem.config.cjs /root/crm/server/ecosystem.config.cjs
             rm -rf /root/crm/deploy-temp
             cd /root/crm/server && pm2 restart ecosystem.config.cjs
             echo "Deploy completed\!"
