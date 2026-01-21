@@ -4,24 +4,11 @@ import QRCode from 'qrcode'
 import { db } from '../db'
 import { conversations, contacts, opportunities } from '../db/schema'
 import { eq, or, like } from 'drizzle-orm'
-import { writeFileSync, mkdirSync, existsSync, appendFileSync } from 'fs'
+import { writeFileSync, mkdirSync, existsSync } from 'fs'
 import { join } from 'path'
 import { platform } from 'os'
 import { normalizePhoneToCanonical, getPhoneVariants } from '../utils/phone'
-
-// Debug log file for WhatsApp events
-const LOG_FILE = process.env.WA_LOG_FILE || './whatsapp-debug.log'
-
-function debugLog(message: string, data?: any) {
-  const timestamp = new Date().toISOString()
-  const logLine = `[${timestamp}] ${message}` + (data ? ' ' + JSON.stringify(data) : '') + '\n'
-  console.log(message, data || '')
-  try {
-    appendFileSync(LOG_FILE, logLine)
-  } catch (e) {
-    // Ignore file write errors
-  }
-}
+import { logWaDebug } from '../utils/wa-debug'
 
 // Get Chrome/Chromium path based on OS
 function getChromePath(): string {
@@ -87,7 +74,7 @@ async function saveMediaFile(media: any, messageId: string): Promise<{ mediaType
 // Find contact by phone using all variants
 async function findContactByPhone(phone: string) {
   const variants = getPhoneVariants(phone)
-  debugLog('PHONE_VARIANTS_SEARCH:', variants)
+  // Phone search variants logged only in verbose mode
   
   for (const variant of variants) {
     const contact = await db.select()
@@ -156,10 +143,10 @@ export function initWhatsAppClient() {
       }
 
       // Debug: log incoming message events
-      debugLog('MESSAGE_EVENT_INCOMING:', {
+      logWaDebug({ event: 'MESSAGE_INCOMING', messageId: message.id?._serialized,
         from: message.from,
         hasMedia: message.hasMedia,
-        body: message.body?.substring(0, 50)
+        hasBody: !!message.body
       })
 
       // Skip status broadcasts
@@ -220,7 +207,7 @@ export function initWhatsAppClient() {
           .set({ lastContactDate: new Date().toISOString() })
           .where(eq(contacts.id, contact.id))
 
-        debugLog('INCOMING_SAVED: ' + contact.name + ' media: ' + (mediaData?.mediaType || 'none'))
+        logWaDebug({ event: 'INCOMING_SAVED', contactFound: true, contactName: contact.name, hasMedia: !!mediaData })
       } else {
         // Auto-create new contact from unknown incoming number
         const waName = waContact?.name || waContact?.pushname || null
@@ -273,7 +260,7 @@ export function initWhatsAppClient() {
         }
       }
     } catch (error) {
-      console.error('Error processing incoming message:', error)
+      console.error('Error processing incoming message:', error); logWaDebug({ event: 'INCOMING_ERROR', error: String(error) })
     }
   })
 
@@ -288,7 +275,7 @@ export function initWhatsAppClient() {
       // Skip status broadcasts
       if (message.to === 'status@broadcast') return
 
-      debugLog('MESSAGE_CREATE_OUTGOING:', { to: message.to, hasMedia: message.hasMedia, body: message.body?.substring(0, 50) })
+      logWaDebug({ event: 'MESSAGE_CREATE_OUTGOING', messageId: message.id?._serialized, to: message.to, hasMedia: message.hasMedia, hasBody: !!message.body })
 
       // Get the recipient phone number
       // IMPORTANT: message.to can be a LID (Linked Device ID) like "280358620774586@lid"
@@ -302,9 +289,9 @@ export function initWhatsAppClient() {
         try {
           chatObj = await message.getChat()
           phone = chatObj?.id?.user || ''
-          debugLog('LID_DETECTED_PHONE:', phone)
+          logWaDebug({ event: 'LID_DETECTED', phone })
         } catch (e) {
-          debugLog('LID_CHAT_FAILED: skipping message')
+          logWaDebug({ event: 'LID_CHAT_FAILED', skipReason: 'could not get chat' })
           return
         }
       } else {
@@ -316,7 +303,7 @@ export function initWhatsAppClient() {
       // LIDs are typically 15+ digits and don't start with valid country codes
       const cleanedPhone = phone.replace(/[^0-9]/g, '')
       if (!cleanedPhone || cleanedPhone.length < 10 || cleanedPhone.length > 13) {
-        debugLog('SKIPPING_INVALID_PHONE: ' + phone + ' length: ' + cleanedPhone.length)
+        logWaDebug({ event: 'SKIP_INVALID_PHONE', phone, skipReason: 'invalid length: ' + cleanedPhone.length })
         return
       }
 
@@ -360,7 +347,7 @@ export function initWhatsAppClient() {
           .set({ lastContactDate: new Date().toISOString() })
           .where(eq(contacts.id, contact.id))
 
-        debugLog('OUTGOING_SAVED: ' + contact.name + ' media: ' + (mediaData?.mediaType || 'none'))
+        logWaDebug({ event: 'OUTGOING_SAVED', contactFound: true, contactName: contact.name, hasMedia: !!mediaData })
       } else {
         // Auto-create contact for outgoing message to unknown number
         // FIX: Use chatObj if we already have it (from LID detection), otherwise fetch it
@@ -413,11 +400,11 @@ export function initWhatsAppClient() {
             updatedAt: new Date().toISOString(),
           })
 
-          debugLog('NEW_CONTACT_CREATED_OUTGOING: ' + contactName + ' ' + formattedPhone)
+          logWaDebug({ event: 'OUTGOING_NEW_CONTACT', contactCreated: true, contactName, phone: formattedPhone })
         }
       }
     } catch (error) {
-      console.error('Error processing outgoing message:', error)
+      console.error('Error processing outgoing message:', error); logWaDebug({ event: 'OUTGOING_ERROR', error: String(error) })
     }
   })
   client.initialize()

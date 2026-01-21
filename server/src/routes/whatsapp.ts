@@ -397,3 +397,22 @@ whatsappRoutes.get('/chats', async (c) => {
   const chats = await getAllWhatsAppChats()
   return c.json(chats)
 })
+
+// Debug logs endpoint
+import { readWaDebugLogs, clearWaDebugLogs } from '../utils/wa-debug'
+
+whatsappRoutes.get('/debug-logs', async (c) => {
+  const linesParam = c.req.query('lines')
+  const lines = linesParam ? parseInt(linesParam) : 200
+  const logs = readWaDebugLogs(lines)
+  return c.json({ 
+    logs,
+    count: logs.length,
+    debugEnabled: process.env.WHATSAPP_DEBUG_LOG === 'true'
+  })
+})
+
+whatsappRoutes.delete('/debug-logs', async (c) => {
+  const success = clearWaDebugLogs()
+  return c.json({ success })
+})
