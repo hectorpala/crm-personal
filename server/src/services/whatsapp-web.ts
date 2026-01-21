@@ -4,10 +4,24 @@ import QRCode from 'qrcode'
 import { db } from '../db'
 import { conversations, contacts, opportunities } from '../db/schema'
 import { eq, or, like } from 'drizzle-orm'
-import { writeFileSync, mkdirSync, existsSync } from 'fs'
+import { writeFileSync, mkdirSync, existsSync, appendFileSync } from 'fs'
 import { join } from 'path'
 import { platform } from 'os'
 import { normalizePhoneToCanonical, getPhoneVariants } from '../utils/phone'
+
+// Debug log file for WhatsApp events
+const LOG_FILE = process.env.WA_LOG_FILE || './whatsapp-debug.log'
+
+function debugLog(message: string, data?: any) {
+  const timestamp = new Date().toISOString()
+  const logLine = `[${timestamp}] ${message}` + (data ? ' ' + JSON.stringify(data) : '') + '\n'
+  console.log(message, data || '')
+  try {
+    appendFileSync(LOG_FILE, logLine)
+  } catch (e) {
+    // Ignore file write errors
+  }
+}
 
 // Get Chrome/Chromium path based on OS
 function getChromePath(): string {
@@ -73,7 +87,7 @@ async function saveMediaFile(media: any, messageId: string): Promise<{ mediaType
 // Find contact by phone using all variants
 async function findContactByPhone(phone: string) {
   const variants = getPhoneVariants(phone)
-  console.log('Searching for phone variants:', variants)
+  debugLog('PHONE_VARIANTS_SEARCH:', variants)
   
   for (const variant of variants) {
     const contact = await db.select()
@@ -142,7 +156,7 @@ export function initWhatsAppClient() {
       }
 
       // Debug: log incoming message events
-      console.log('message event (incoming):', {
+      debugLog('MESSAGE_EVENT_INCOMING:', {
         from: message.from,
         hasMedia: message.hasMedia,
         body: message.body?.substring(0, 50)
@@ -206,7 +220,7 @@ export function initWhatsAppClient() {
           .set({ lastContactDate: new Date().toISOString() })
           .where(eq(contacts.id, contact.id))
 
-        console.log('Incoming message saved for contact:', contact.name, 'media:', mediaData?.mediaType || 'none')
+        debugLog('INCOMING_SAVED: ' + contact.name + ' media: ' + (mediaData?.mediaType || 'none'))
       } else {
         // Auto-create new contact from unknown incoming number
         const waName = waContact?.name || waContact?.pushname || null
@@ -274,7 +288,7 @@ export function initWhatsAppClient() {
       // Skip status broadcasts
       if (message.to === 'status@broadcast') return
 
-      console.log('message_create (outgoing):', { to: message.to, hasMedia: message.hasMedia, body: message.body?.substring(0, 50) })
+      debugLog('MESSAGE_CREATE_OUTGOING:', { to: message.to, hasMedia: message.hasMedia, body: message.body?.substring(0, 50) })
 
       // Get the recipient phone number
       // IMPORTANT: message.to can be a LID (Linked Device ID) like "280358620774586@lid"
@@ -288,9 +302,9 @@ export function initWhatsAppClient() {
         try {
           chatObj = await message.getChat()
           phone = chatObj?.id?.user || ''
-          console.log('LID detected, got phone from chat:', phone)
+          debugLog('LID_DETECTED_PHONE:', phone)
         } catch (e) {
-          console.log('Could not get chat for LID, skipping message')
+          debugLog('LID_CHAT_FAILED: skipping message')
           return
         }
       } else {
@@ -302,7 +316,7 @@ export function initWhatsAppClient() {
       // LIDs are typically 15+ digits and don't start with valid country codes
       const cleanedPhone = phone.replace(/[^0-9]/g, '')
       if (!cleanedPhone || cleanedPhone.length < 10 || cleanedPhone.length > 13) {
-        console.log('Skipping invalid phone (likely LID):', phone, 'length:', cleanedPhone.length)
+        debugLog('SKIPPING_INVALID_PHONE: ' + phone + ' length: ' + cleanedPhone.length)
         return
       }
 
@@ -346,7 +360,7 @@ export function initWhatsAppClient() {
           .set({ lastContactDate: new Date().toISOString() })
           .where(eq(contacts.id, contact.id))
 
-        console.log('Outgoing message saved for contact:', contact.name, 'media:', mediaData?.mediaType || 'none')
+        debugLog('OUTGOING_SAVED: ' + contact.name + ' media: ' + (mediaData?.mediaType || 'none'))
       } else {
         // Auto-create contact for outgoing message to unknown number
         // FIX: Use chatObj if we already have it (from LID detection), otherwise fetch it
@@ -399,7 +413,7 @@ export function initWhatsAppClient() {
             updatedAt: new Date().toISOString(),
           })
 
-          console.log("New contact created from outgoing WhatsApp:", contactName, formattedPhone)
+          debugLog('NEW_CONTACT_CREATED_OUTGOING: ' + contactName + ' ' + formattedPhone)
         }
       }
     } catch (error) {
