@@ -155,18 +155,38 @@ export function initWhatsAppClient() {
         return
       }
 
-      // Get the contact info to extract the real phone number
-      const waContact = await message.getContact()
-      let phone = waContact?.number || ''
+      // Get phone number - handle LID (Linked Device ID) like outgoing messages
+      // LIDs look like "13327350640685@lid" and are NOT real phone numbers
+      let phone = ''
+      let chatObj: any = null // Store chat object to reuse for name resolution
+      const isLid = message.from.includes('@lid')
 
-      // Get phone from message.from for incoming messages
-      if (!phone) {
-        phone = message.from.replace(/@c\.us$/, '').replace(/@lid$/, '')
+      if (isLid) {
+        // LID detected - get real phone from chat object
+        try {
+          chatObj = await message.getChat()
+          phone = chatObj?.id?.user || ''
+          logWaDebug({ event: 'INCOMING_LID_DETECTED', lid: message.from, resolvedPhone: phone })
+        } catch (e) {
+          logWaDebug({ event: 'INCOMING_LID_CHAT_FAILED', skipReason: 'could not get chat' })
+          return
+        }
+      } else {
+        // Normal message - try getContact first, fallback to message.from
+        const waContact = await message.getContact()
+        phone = waContact?.number || message.from.replace(/@c\.us$/, '')
       }
 
-      // Skip if no valid phone number or group messages
-      if (!phone || phone.includes('@g.us')) {
-        console.log('Skipping group or invalid message')
+      // Validate phone - E.164 allows 10-15 digits
+      const cleanedPhone = phone.replace(/[^0-9]/g, '')
+      if (!cleanedPhone || cleanedPhone.length < 10 || cleanedPhone.length > 15) {
+        logWaDebug({ event: 'INCOMING_SKIP_INVALID_PHONE', phone, skipReason: 'invalid length: ' + cleanedPhone.length })
+        return
+      }
+
+      // Skip group messages
+      if (phone.includes('@g.us')) {
+        console.log('Skipping group message')
         return
       }
 
@@ -210,7 +230,18 @@ export function initWhatsAppClient() {
         logWaDebug({ event: 'INCOMING_SAVED', contactFound: true, contactName: contact.name, hasMedia: !!mediaData })
       } else {
         // Auto-create new contact from unknown incoming number
-        const waName = waContact?.name || waContact?.pushname || null
+        // Use chatObj.name for LID cases, or try to get waContact for non-LID
+        let waName: string | null = null
+        if (chatObj) {
+          waName = chatObj.name || null
+        } else {
+          try {
+            const waContact = await message.getContact()
+            waName = waContact?.name || waContact?.pushname || null
+          } catch (e) {
+            // Ignore - name will be null
+          }
+        }
         const formattedPhone = normalizePhoneToCanonical(phone) // Formato canónico
         const contactName = waName || "Nuevo - " + phone
 
@@ -302,7 +333,7 @@ export function initWhatsAppClient() {
       // Real Mexican phones: 10 digits local, or 12-13 with country code (52/521)
       // LIDs are typically 15+ digits and don't start with valid country codes
       const cleanedPhone = phone.replace(/[^0-9]/g, '')
-      if (!cleanedPhone || cleanedPhone.length < 10 || cleanedPhone.length > 13) {
+      if (!cleanedPhone || cleanedPhone.length < 10 || cleanedPhone.length > 15) {
         logWaDebug({ event: 'SKIP_INVALID_PHONE', phone, skipReason: 'invalid length: ' + cleanedPhone.length })
         return
       }
