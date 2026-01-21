@@ -155,27 +155,17 @@ export function initWhatsAppClient() {
         return
       }
 
-      // Get phone number - handle LID (Linked Device ID) like outgoing messages
-      // LIDs look like "13327350640685@lid" and are NOT real phone numbers
-      let phone = ''
-      let chatObj: any = null // Store chat object to reuse for name resolution
-      const isLid = message.from.includes('@lid')
+      // Get the contact info - for INCOMING messages, getContact() returns the SENDER (correct)
+      // This is different from OUTGOING where getContact() returns admin (wrong)
+      const waContact = await message.getContact()
+      let phone = waContact?.number || ''
 
-      if (isLid) {
-        // LID detected - get real phone from chat object
-        try {
-          chatObj = await message.getChat()
-          phone = chatObj?.id?.user || ''
-          logWaDebug({ event: 'INCOMING_LID_DETECTED', lid: message.from, resolvedPhone: phone })
-        } catch (e) {
-          logWaDebug({ event: 'INCOMING_LID_CHAT_FAILED', skipReason: 'could not get chat' })
-          return
-        }
-      } else {
-        // Normal message - try getContact first, fallback to message.from
-        const waContact = await message.getContact()
-        phone = waContact?.number || message.from.replace(/@c\.us$/, '')
+      // Fallback: extract from message.from if waContact.number is empty
+      if (!phone) {
+        phone = message.from.replace(/@c\.us$/, '').replace(/@lid$/, '')
       }
+
+      logWaDebug({ event: 'INCOMING_PHONE_RESOLVED', waContactNumber: waContact?.number, phone })
 
       // Validate phone - E.164 allows 10-15 digits
       const cleanedPhone = phone.replace(/[^0-9]/g, '')
@@ -230,18 +220,7 @@ export function initWhatsAppClient() {
         logWaDebug({ event: 'INCOMING_SAVED', contactFound: true, contactName: contact.name, hasMedia: !!mediaData })
       } else {
         // Auto-create new contact from unknown incoming number
-        // Use chatObj.name for LID cases, or try to get waContact for non-LID
-        let waName: string | null = null
-        if (chatObj) {
-          waName = chatObj.name || null
-        } else {
-          try {
-            const waContact = await message.getContact()
-            waName = waContact?.name || waContact?.pushname || null
-          } catch (e) {
-            // Ignore - name will be null
-          }
-        }
+        const waName = waContact?.name || waContact?.pushname || null
         const formattedPhone = normalizePhoneToCanonical(phone) // Formato canónico
         const contactName = waName || "Nuevo - " + phone
 
@@ -316,13 +295,25 @@ export function initWhatsAppClient() {
       const isLid = message.to.includes('@lid')
 
       if (isLid) {
-        // LID detected - get real phone from chat object
+        // LID detected - need to get real phone number
+        // chat.id.user returns LID (wrong), we need chat.contact.number or similar
         try {
           chatObj = await message.getChat()
-          phone = chatObj?.id?.user || ''
-          logWaDebug({ event: 'LID_DETECTED', phone })
+          
+          // Try multiple sources for the real phone number
+          // 1. chat.contact?.number (the contact associated with this chat)
+          // 2. Fallback to chat.id.user (but this is often the LID)
+          const chatContact = await chatObj?.getContact?.()
+          phone = chatContact?.number || chatObj?.id?.user || ''
+          
+          logWaDebug({ 
+            event: 'LID_DETECTED', 
+            chatIdUser: chatObj?.id?.user,
+            chatContactNumber: chatContact?.number,
+            resolvedPhone: phone 
+          })
         } catch (e) {
-          logWaDebug({ event: 'LID_CHAT_FAILED', skipReason: 'could not get chat' })
+          logWaDebug({ event: 'LID_CHAT_FAILED', skipReason: 'could not get chat', error: String(e) })
           return
         }
       } else {
